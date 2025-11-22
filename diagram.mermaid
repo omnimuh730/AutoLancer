@@ -1,0 +1,89 @@
+graph TD
+
+    31["User<br>External Actor"]
+    8["User<br>External Actor"]
+    subgraph 1["Extension<br>React"]
+        23["Build and Configuration<br>Vite/ESLint"]
+        subgraph 2["API Integration Layer (Shared)<br>JavaScript"]
+            21["Notification API<br>JavaScript"]
+            22["Socket Communication<br>JavaScript"]
+        end
+        subgraph 3["Extension Core<br>React/JavaScript"]
+            17["Manifest File<br>JSON"]
+            18["Background Script<br>JavaScript"]
+            19["Extension UI Entry Point<br>React"]
+            20["Extension Root Application Component<br>React"]
+            %% Edges at this level (grouped by source)
+            19["Extension UI Entry Point<br>React"] -->|renders| 20["Extension Root Application Component<br>React"]
+        end
+        %% Edges at this level (grouped by source)
+        18["Background Script<br>JavaScript"] -->|uses| 2["API Integration Layer (Shared)<br>JavaScript"]
+        20["Extension Root Application Component<br>React"] -->|uses| 2["API Integration Layer (Shared)<br>JavaScript"]
+    end
+    subgraph 24["Extension<br>React"]
+        46["Build and Configuration<br>Vite/ESLint"]
+        subgraph 25["API Integration Layer (Shared)<br>JavaScript"]
+            44["Notification API<br>JavaScript"]
+            45["Socket Communication<br>JavaScript"]
+        end
+        subgraph 26["Extension Core<br>React/JavaScript"]
+            40["Manifest File<br>JSON"]
+            41["Background Script<br>JavaScript"]
+            42["Extension UI Entry Point<br>React"]
+            43["Extension Root Application Component<br>React"]
+            %% Edges at this level (grouped by source)
+            42["Extension UI Entry Point<br>React"] -->|renders| 43["Extension Root Application Component<br>React"]
+        end
+        %% Edges at this level (grouped by source)
+        41["Background Script<br>JavaScript"] -->|uses| 25["API Integration Layer (Shared)<br>JavaScript"]
+        43["Extension Root Application Component<br>React"] -->|uses| 25["API Integration Layer (Shared)<br>JavaScript"]
+    end
+    subgraph 27["AIMS-frontend<br>React"]
+        34["Application Entry Point<br>React"]
+        39["Build and Configuration<br>Vite/ESLint"]
+        subgraph 28["API Integration Layer<br>JavaScript"]
+            37["Notification API<br>JavaScript"]
+            38["Socket Communication<br>JavaScript"]
+        end
+        subgraph 29["Core Application Components<br>React"]
+            35["Root Application Component<br>React"]
+            36["Page Components<br>React"]
+        end
+        %% Edges at this level (grouped by source)
+        35["Root Application Component<br>React"] -->|uses| 28["API Integration Layer<br>JavaScript"]
+        36["Page Components<br>React"] -->|uses| 28["API Integration Layer<br>JavaScript"]
+        34["Application Entry Point<br>React"] -->|renders| 35["Root Application Component<br>React"]
+    end
+    subgraph 30["AIMS-backend<br>Node.js"]
+        32["Core Application<br>Node.js"]
+        33["Dependencies and Configuration<br>Node.js"]
+    end
+    subgraph 4["AIMS-frontend<br>React"]
+        11["Application Entry Point<br>React"]
+        16["Build and Configuration<br>Vite/ESLint"]
+        subgraph 5["API Integration Layer<br>JavaScript"]
+            14["Notification API<br>JavaScript"]
+            15["Socket Communication<br>JavaScript"]
+        end
+        subgraph 6["Core Application Components<br>React"]
+            12["Root Application Component<br>React"]
+            13["Page Components<br>React"]
+        end
+        %% Edges at this level (grouped by source)
+        12["Root Application Component<br>React"] -->|uses| 5["API Integration Layer<br>JavaScript"]
+        13["Page Components<br>React"] -->|uses| 5["API Integration Layer<br>JavaScript"]
+        11["Application Entry Point<br>React"] -->|renders| 12["Root Application Component<br>React"]
+    end
+    subgraph 7["AIMS-backend<br>Node.js"]
+        10["Dependencies and Configuration<br>Node.js"]
+        9["Core Application<br>Node.js"]
+    end
+    %% Edges at this level (grouped by source)
+    8["User<br>External Actor"] -->|uses| 1["Extension<br>React"]
+    8["User<br>External Actor"] -->|uses| 4["AIMS-frontend<br>React"]
+    1["Extension<br>React"] -->|consumes API| 7["AIMS-backend<br>Node.js"]
+    4["AIMS-frontend<br>React"] -->|consumes API| 7["AIMS-backend<br>Node.js"]
+    31["User<br>External Actor"] -->|uses| 24["Extension<br>React"]
+    31["User<br>External Actor"] -->|uses| 27["AIMS-frontend<br>React"]
+    24["Extension<br>React"] -->|consumes API| 30["AIMS-backend<br>Node.js"]
+    27["AIMS-frontend<br>React"] -->|consumes API| 30["AIMS-backend<br>Node.js"]

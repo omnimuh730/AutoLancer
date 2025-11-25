@@ -4,9 +4,7 @@ import App from './App.jsx'
 import Providers from './api/Providers.jsx'
 
 createRoot(document.getElementById('root')).render(
-	<React.StrictMode>
-		<Providers>
-			<App />
-		</Providers>
-	</React.StrictMode>
+	<Providers>
+		<App />
+	</Providers>
 )

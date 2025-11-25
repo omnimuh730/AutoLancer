@@ -46,7 +46,7 @@ const SetupComponent = () => {
 	const socket = useSocket();
 
 	// Call the notification hook at top level (HOOKS must be called at top-level)
-	const notification = useNotification();
+	const { success: notifySuccess, error: notifyError } = useNotification();
 
 	const [isLevel1Connected, setIsLevel1Connected] = useState(false);
 	const [isLevel2Connected, setIsLevel2Connected] = useState(false);
@@ -85,11 +85,11 @@ const SetupComponent = () => {
 						// Handle the check_connections purpose
 						if (data.payload.src === SOCKET_PROTOCOL.LOCATION.EXTENSION && data.payload.tgt === SOCKET_PROTOCOL.LOCATION.EXTENSION) {
 							setIsLevel1Connected(true);
-							notification.success(SOCKET_MESSAGE.LEVEL1_CONNECTED);
+							notifySuccess(SOCKET_MESSAGE.LEVEL1_CONNECTED);
 						}
 						if (data.payload.src === SOCKET_PROTOCOL.LOCATION.FRONTEND && data.payload.tgt === SOCKET_PROTOCOL.LOCATION.EXTENSION) {
 							setIsLevel2Connected(true);
-							notification.success(SOCKET_MESSAGE.LEVEL2_CONNECTED);
+							notifySuccess(SOCKET_MESSAGE.LEVEL2_CONNECTED);
 						}
 						break;
 					// Add more cases as needed
@@ -99,7 +99,7 @@ const SetupComponent = () => {
 			});
 
 			socket.on(SOCKET_PROTOCOL.STATUS.DISCONNECTED, (reason) => {
-				notification.error(`${SOCKET_MESSAGE.LEVEL1_DISCONNECTED} - ${reason}`);
+				notifyError(`${SOCKET_MESSAGE.LEVEL1_DISCONNECTED} - ${reason}`);
 				setIsLevel1Connected(false);
 			});
 
@@ -109,7 +109,7 @@ const SetupComponent = () => {
 				socket.off(SOCKET_PROTOCOL.STATUS.DISCONNECTED);
 			};
 		}
-	}, [socket, notification]);
+	}, [socket, notifySuccess, notifyError]);
 
 	return (
 		<Card sx={{ maxWidth: 500, mx: 'auto', mt: 4, borderRadius: 3, boxShadow: 3 }}>

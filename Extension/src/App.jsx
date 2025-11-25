@@ -22,22 +22,36 @@ const darkTheme = createTheme({
 function App() {
 
 	const socket = useSocket();
-	const notification = useNotification();
+	const { success: notifySuccess } = useNotification();
 
 	useEffect(() => {
-		socket.on("notification", (msg) => {
-			notification.success(`Socket: ${msg}`);
-		});
-		return () => socket.off("notification");
-	}, [socket, notification]);
+		if (!socket) return undefined;
+		const notificationHandler = (msg) => {
+			notifySuccess(`Socket: ${msg}`);
+		};
+		socket.on("notification", notificationHandler);
+		return () => socket.off("notification", notificationHandler);
+	}, [socket, notifySuccess]);
 
 	useEffect(() => {
+		if (!socket) return undefined;
 		const handleConnection = (data) => {
+			// Avoid infinite echo loops when we receive our own acknowledgement back
+			const alreadyAcknowledged =
+				data?.status === 'received' ||
+				data?.payload?.status === 'received' ||
+				typeof data?.originalPayload !== 'undefined';
+
+			if (alreadyAcknowledged) {
+				return;
+			}
+
 			console.log('Received data from backend:', data);
-			notification.success('Received data from Nebula');
-			// Reply back
+			notifySuccess('Received data from Nebula');
+
+			// Reply back just once per backend message
 			socket.emit(SOCKET_PROTOCOL.TYPE.CONNECTION, {
-				from: 'extension',
+				from: SOCKET_PROTOCOL.LOCATION.EXTENSION,
 				status: 'received',
 				originalPayload: data.payload,
 			});
@@ -48,7 +62,7 @@ function App() {
 		return () => {
 			socket.off(SOCKET_PROTOCOL.TYPE.CONNECTION, handleConnection);
 		};
-	}, [socket, notification]);
+	}, [socket, notifySuccess]);
 
 	return (
 		<ThemeProvider theme={darkTheme}>

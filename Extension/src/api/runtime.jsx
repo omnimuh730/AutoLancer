@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useCallback, useMemo } from 'react';
 import RuntimeContext from './runtimeContext';
 
 /* global chrome */
@@ -35,24 +35,30 @@ export const RuntimeProvider = ({ children }) => {
 		};
 	}, []);
 
-	const sendMessage = (message) => {
+	const sendMessage = useCallback((message) => {
 		if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) {
 			console.warn('chrome.runtime.sendMessage not available');
 			return;
 		}
 		chrome.runtime.sendMessage(message);
-	};
+	}, []);
 
-	const addListener = (fn) => {
+	const addListener = useCallback((fn) => {
 		listenersRef.current.add(fn);
-	};
+	}, []);
 
-	const removeListener = (fn) => {
+	const removeListener = useCallback((fn) => {
 		listenersRef.current.delete(fn);
-	};
+	}, []);
+
+	const value = useMemo(() => ({
+		sendMessage,
+		addListener,
+		removeListener
+	}), [sendMessage, addListener, removeListener]);
 
 	return (
-		<RuntimeContext.Provider value={{ sendMessage, addListener, removeListener }}>
+		<RuntimeContext.Provider value={value}>
 			{children}
 		</RuntimeContext.Provider>
 	);

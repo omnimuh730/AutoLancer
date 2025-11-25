@@ -14,11 +14,11 @@ import DailyApplication from './DailyApplication';
 import JobSource from './JobSource/index';
 
 
-const AIReportPage = () => {
+const ReportPage = () => {
 	return (
 		<Container maxWidth="xl">
 			<Typography variant="h4" gutterBottom sx={{ textAlign: 'center', mt: 4 }}>
-				AI Report Page
+				Overall Report
 			</Typography>
 			<Box sx={{ mt: 4 }}>
 				<DailyApplication />
@@ -28,4 +28,4 @@ const AIReportPage = () => {
 	)
 }
 
-export default AIReportPage;
+export default ReportPage;

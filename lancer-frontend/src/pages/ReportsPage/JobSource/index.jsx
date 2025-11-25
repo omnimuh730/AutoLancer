@@ -1,10 +1,10 @@
 import React, { useEffect, useState, useMemo } from "react";
-import useApi from "../../../../api/useApi";
-import { useApplier } from "../../../../context/ApplierContext.jsx";
+import useApi from "../../../api/useApi.js";
+import { useApplier } from "../../../context/ApplierContext.jsx";
 import { Box, CircularProgress, Typography } from "@mui/material";
-import { JobSource as JobSourceList } from '../../../../../../configs/pub';
-import JobSourceChart from "./JobSourceChart";
-import { SCALING_POWER, SERIES_CONFIG } from "./constants";
+import { JobSource as JobSourceList } from '../../../../../configs/pub.js';
+import JobSourceChart from "./JobSourceChart.jsx";
+import { SCALING_POWER, SERIES_CONFIG } from "./constants.js";
 
 const JobSource = () => {
 	const { get } = useApi();

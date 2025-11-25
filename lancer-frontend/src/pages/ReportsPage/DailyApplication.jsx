@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from "react";
-import useApi from "../../../api/useApi";
+import useApi from "../../api/useApi.js";
 import { Box, CircularProgress, Typography, Grid, Paper, Tooltip } from "@mui/material";
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import dayjs from 'dayjs';
-import { useApplier } from '../../../context/ApplierContext.jsx';
+import { useApplier } from '../../context/ApplierContext.jsx';
 
 const YearlyHeatmap = ({ data }) => {
 	const cellSize = 14;

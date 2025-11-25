@@ -1,5 +1,10 @@
 import * as React from 'react';
-import { Autocomplete, TextField, createFilterOptions, Typography, Button, Stack } from '@mui/material';
+import { Autocomplete, TextField, createFilterOptions, Chip, Button, Stack, IconButton } from '@mui/material';
+
+import {
+	Face
+} from '@mui/icons-material';
+
 import LogoutIcon from '@mui/icons-material/Logout';
 import useApi from '../api/useApi';
 import { useApplier } from '../context/ApplierContext.jsx';
@@ -75,17 +80,10 @@ export default function NameCombobox() {
 	if (authUser) {
 		return (
 			<Stack direction="row" spacing={2} alignItems="center" sx={{ ml: 2 }}>
-				<Typography variant="body1" sx={{ minWidth: 150 }}>
-					{authUser.name}
-				</Typography>
-				<Button
-					variant="outlined"
-					size="small"
-					startIcon={<LogoutIcon />}
-					onClick={handleSignOut}
-				>
-					Sign Out
-				</Button>
+				<Chip icon={<Face />} label={authUser.name} color='success' />
+				<IconButton onClick={handleSignOut}>
+					<LogoutIcon />
+				</IconButton>
 			</Stack>
 		);
 	}
@@ -124,9 +122,9 @@ export default function NameCombobox() {
 			}}
 			isOptionEqualToValue={(opt, val) => (opt?._id && val?._id ? String(opt._id) === String(val._id) : opt?.name === val?.name)}
 			renderInput={(params) => (
-				<TextField 
-					{...params} 
-					label="Find or Add User" 
+				<TextField
+					{...params}
+					label="Find or Add User"
 					placeholder="Select a user"
 				/>
 			)}

@@ -15,8 +15,7 @@ import DashboardPage from "./pages/DashboardPage";
 import NotFoundPage from "./pages/NotFoundPage";
 import SettingsPage from "./pages/SettingsPage";
 import AutomationPage from "./pages/AutomationPage";
-import AIReportPage from "./pages/ReportsPage/AIReport";
-import MannualReportPage from "./pages/ReportsPage/MannualReport";
+import ReportPage from "./pages/ReportsPage";
 import SignInPage from "./pages/SignInPage";
 import SignUpPage from "./pages/SignUpPage";
 import { AutoAwesome, Settings, Visibility } from "@mui/icons-material";
@@ -54,18 +53,6 @@ const NAVIGATION = [
 		segment: "reports",
 		title: "Reports",
 		icon: <BarChartIcon />,
-		children: [
-			{
-				segment: "mannual",
-				title: "Mannual",
-				icon: <DescriptionIcon />,
-			},
-			{
-				segment: "ai",
-				title: "AI",
-				icon: <DescriptionIcon />,
-			},
-		],
 	},
 	{
 		segment: "settings",
@@ -126,8 +113,7 @@ function AppContent() {
 			<Route path="/dashboard" element={<DashboardPage />} />
 			<Route path="/settings" element={<SettingsPage />} />
 			<Route path="/automation" element={<AutomationPage />} />
-			<Route path="/reports/mannual" element={<MannualReportPage />} />
-			<Route path="/reports/ai" element={<AIReportPage />} />
+			<Route path="/reports" element={<ReportPage />} />
 			<Route path="/signin" element={<SignInPage />} />
 			<Route path="/signup" element={<SignUpPage />} />
 			<Route path="*" element={<NotFoundPage />} />
@@ -185,6 +171,11 @@ function App(props) {
 		<DemoProvider window={demoWindow}>
 			<AppProvider
 				navigation={NAVIGATION}
+				branding={{
+					logo: <img src="./../src/assets/logo.png" alt="AutoLancer logo" />,
+					title: 'AutoLancer',
+					homeUrl: '/',
+				}}
 				router={router}
 				theme={demoTheme}
 				window={demoWindow}

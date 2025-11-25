@@ -36,6 +36,17 @@ function App() {
 	useEffect(() => {
 		if (!socket) return undefined;
 		const handleConnection = (data) => {
+			const payload = data?.payload ?? {};
+			const { src, tgt } = payload;
+
+			// Ignore messages that originated from this extension or target someone else
+			if (src === SOCKET_PROTOCOL.LOCATION.EXTENSION) {
+				return;
+			}
+			if (tgt && tgt !== SOCKET_PROTOCOL.LOCATION.EXTENSION) {
+				return;
+			}
+
 			// Avoid infinite echo loops when we receive our own acknowledgement back
 			const alreadyAcknowledged =
 				data?.status === 'received' ||

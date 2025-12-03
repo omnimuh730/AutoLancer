@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useRuntime } from '../../api/runtimeContext';
 import useApi from '../../api/useApi';
 import { AgentUI } from './UI';
-import { highlightInteractables, clearHighlights } from './api';
+import { highlightInteractables, clearHighlights } from '../../contentScript/interactionBridge';
 
 function AgentPage() {
 	const { addListener, removeListener } = useRuntime();

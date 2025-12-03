@@ -3,6 +3,8 @@ import { isVisible } from "./domUtils";
 import { clearHighlights, highlightByPattern as doHighlightByPattern } from "./highlighter";
 import { performActionOnElement } from "./actionExecutor";
 
+/* global chrome */
+
 // --- HELPER FUNCTIONS ---
 
 /**
@@ -100,6 +102,7 @@ function serializeElement(element) {
 	return {
 		tag: element.tagName.toLowerCase(),
 		properties: properties,
+		innerHTML: element.innerHTML, // include actual markup so UI can inspect the component contents
 	};
 }
 
@@ -230,7 +233,7 @@ export const messageHandler = (request, sender, sendResponse) => {
 							chrome.runtime.sendMessage({ action: 'fetchResult', payload: { identifier, success: true, data } });
 						} else {
 							// Execute interactive actions (click/fill/typeSmoothly)
-							const result = await performActionOnElement(payload);
+							await performActionOnElement(payload);
 							// Optionally we could send an acknowledgement to UI if needed later
 						}
 					} catch (err) {

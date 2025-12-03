@@ -7,6 +7,8 @@ const OpenAI = require('openai');
 const fs = require('fs');
 const path = require('path');
 
+const { analyzeData } = require('./core/analyze');
+
 const app = express();
 const port = process.env.PORT || 3001;
 
@@ -90,9 +92,20 @@ app.post('/analyze', async (req, res) => {
 	//	console.log(analyzeComponentData);
 	console.log(`Received ${analyzeComponentData.components.length} characters of analyzeComponentData`)
 
+	analyzeResultSet = [];
+
+	for (const component of analyzeComponentData.components) {
+		const analyzeResult = await analyzeData(component);
+
+		analyzeResultSet.push({
+			componentName: component.name,
+			result: analyzeResult
+		});
+	}
+
 	console.log('Analyze endpoint processing complete');
 
-	return res.json({ message: 'Analyze endpoint received data successfully' });
+	return res.json({ message: 'Analyze endpoint received data successfully', payload: analyzeResultSet });
 });
 
 app.listen(port, () => {

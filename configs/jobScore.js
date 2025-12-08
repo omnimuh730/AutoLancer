@@ -104,10 +104,9 @@ export function calculateJobScores(job, userSkills) {
 		});
 
 		estimateApplicantNumber = estimation;
-		applicantScore = estimation > MAXIMUM_APPLICANTS ? 0 : (MAXIMUM_APPLICANTS - estimation) / 20;
-		if (applicantCount <= 25) applicantScore = 100;
-		else if (applicantCount >= MAXIMUM_APPLICANTS) applicantScore = 0;
-		else applicantScore = 100 - (((applicantCount - 25) / (MAXIMUM_APPLICANTS - 25)) * 100);
+
+		if (estimateApplicantNumber > 200) applicantScore = 0;
+		else applicantScore = 100 * Math.pow(Math.cos((estimateApplicantNumber / 200) * (Math.PI / 2)), 1.5);
 	}
 
 	// Freshness score

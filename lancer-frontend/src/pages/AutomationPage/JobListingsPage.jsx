@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useLayoutEffect } from "react";
 import useNotification from '../../api/useNotification';
 // CHANGE 1: Import the Collapse component from MUI
 import { Container, Stack, Typography, CircularProgress, Alert, Box, Collapse } from "@mui/material";
@@ -54,6 +54,40 @@ function JobListingsPage() {
 	const { applier } = useApplier();
 	const applierId = applier?._id ? normalizeId(applier._id) : null;
 
+	const getStatusEntryForApplier = useCallback((job) => {
+		if (!applierId || !job) return null;
+		const entries = Array.isArray(job.status) ? job.status : [];
+		return entries.find(entry => normalizeId(entry.applier) === applierId) || null;
+	}, [applierId]);
+
+	const jobMatchesCurrentFilters = useCallback((job) => {
+		if (!job) return false;
+		if (!applierId) return true;
+		const entry = getStatusEntryForApplier(job);
+
+		if (filters.applied === false) {
+			return !entry;
+		}
+
+		if (filters.applied === true) {
+			if (!entry) return false;
+			if (!filters.status) return true;
+			const hasSchedule = !!entry.scheduledDate;
+			const hasDecline = !!entry.declinedDate;
+			if (filters.status === 'Applied') {
+				return !hasSchedule && !hasDecline;
+			}
+			if (filters.status === 'Scheduled') {
+				return hasSchedule;
+			}
+			if (filters.status === 'Declined') {
+				return hasDecline;
+			}
+		}
+
+		return true;
+	}, [applierId, filters, getStatusEntryForApplier]);
+
 	const replaceJob = useCallback((jobId, updater) => {
 		if (!jobId || typeof updater !== 'function') return;
 		setJobs(prev => prev.map(job => {
@@ -76,7 +110,16 @@ function JobListingsPage() {
 	const removeJobsLocally = useCallback((ids) => {
 		if (!Array.isArray(ids) || !ids.length) return;
 		const idSet = new Set(ids);
-		setJobs(prev => prev.filter(job => !idSet.has(getJobId(job))));
+		let removedCount = 0;
+		setJobs(prev => {
+			if (!Array.isArray(prev) || !prev.length) return prev;
+			const next = prev.filter(job => {
+				const shouldRemove = idSet.has(getJobId(job));
+				if (shouldRemove) removedCount += 1;
+				return !shouldRemove;
+			});
+			return next;
+		});
 		setSelectedIds(prev => prev.filter(id => !idSet.has(id)));
 		prefetchedPagesRef.current.forEach((value, key) => {
 			if (!Array.isArray(value?.data)) return;
@@ -85,7 +128,33 @@ function JobListingsPage() {
 				prefetchedPagesRef.current.set(key, { ...value, data: newData });
 			}
 		});
+		if (removedCount) {
+			setPagination(prev => {
+				const limit = prev.limit || 1;
+				const total = Math.max(0, (prev.total || 0) - removedCount);
+				const totalPages = Math.max(1, Math.ceil(total / limit));
+				const page = Math.min(prev.page, totalPages);
+				const nextPagination = { ...prev, total, totalPages, page };
+				prefetchedPagesRef.current.forEach((value, key) => {
+					if (!value) return;
+					prefetchedPagesRef.current.set(key, {
+						...value,
+						pagination: { ...(value.pagination || {}), total, totalPages }
+					});
+				});
+				return nextPagination;
+			});
+		}
 	}, []);
+
+	const syncJobWithCurrentView = useCallback((jobId, nextJob) => {
+		if (!jobId || !nextJob) return;
+		if (jobMatchesCurrentFilters(nextJob)) {
+			replaceJob(jobId, () => nextJob);
+		} else {
+			removeJobsLocally([jobId]);
+		}
+	}, [jobMatchesCurrentFilters, removeJobsLocally, replaceJob]);
 
 	const fetchJobs = useCallback(async (pageOverride = pagination.page, { silent = false } = {}) => {
 		const body = {
@@ -134,6 +203,11 @@ function JobListingsPage() {
 		}
 	}, [jobGet]);
 
+	useLayoutEffect(() => {
+		prefetchedPagesRef.current.clear();
+		setJobs(prev => (prev.length ? [] : prev));
+	}, [searchQuery, sortOption, filters, pagination.limit, applierId]);
+
 	useEffect(() => {
 		let cancelled = false;
 		const load = async () => {
@@ -167,10 +241,6 @@ function JobListingsPage() {
 	useEffect(() => {
 		fetchUserSkills();
 	}, [fetchUserSkills]);
-
-	useEffect(() => {
-		prefetchedPagesRef.current.clear();
-	}, [searchQuery, sortOption, filters, pagination.limit, applierId]);
 
 	useEffect(() => {
 		setPagination(prev => prev.page === 1 ? prev : { ...prev, page: 1 });
@@ -214,12 +284,8 @@ function JobListingsPage() {
 		});
 		try {
 			const res = await actionPost(`/jobs/${strId}/apply`, { applied: true, applierName: applier?.name });
-			if (res && res.success && res.data) {
-				if (filters.applied === false) {
-					removeJobsLocally([strId]);
-				} else {
-					replaceJob(strId, () => res.data);
-				}
+			if (res?.success && res.data) {
+				syncJobWithCurrentView(strId, res.data);
 			} else {
 				throw new Error('Apply API failed');
 			}
@@ -258,8 +324,8 @@ function JobListingsPage() {
 		});
 		try {
 			const res = await actionPost(`/jobs/${strId}/status`, { status, applierName: applier?.name });
-			if (res && res.success && res.data) {
-				replaceJob(strId, () => res.data);
+			if (res?.success && res.data) {
+				syncJobWithCurrentView(strId, res.data);
 				notification.success(`Job status updated to ${status}`);
 			} else {
 				throw new Error('Failed to update status');
@@ -284,12 +350,8 @@ function JobListingsPage() {
 		});
 		try {
 			const res = await actionPost(`/jobs/${strId}/unapply`, { applierName: applier?.name });
-			if (res && res.success && res.data) {
-				if (filters.applied === true) {
-					removeJobsLocally([strId]);
-				} else {
-					replaceJob(strId, () => res.data);
-				}
+			if (res?.success && res.data) {
+				syncJobWithCurrentView(strId, res.data);
 				notification.success('Successfully unapplied from job');
 			} else {
 				throw new Error('Failed to unapply');

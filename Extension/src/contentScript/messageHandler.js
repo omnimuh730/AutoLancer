@@ -3,6 +3,8 @@ import { isVisible } from "./domUtils";
 import { clearHighlights, highlightByPattern as doHighlightByPattern } from "./highlighter";
 import { performActionOnElement } from "./actionExecutor";
 
+/* global chrome */
+
 // --- HELPER FUNCTIONS ---
 
 /**
@@ -76,30 +78,22 @@ function findMeaningfulParent(startNode) {
  * @param {HTMLElement} element The element to serialize.
  * @returns {Object|null} A structured object or null if the element is invalid.
  */
-function serializeElement(element) {
-	if (!element || typeof element.tagName !== 'string') {
-		return null;
-	}
-
-	const properties = [];
-	// Efficiently add id and class if they exist
-	if (element.id) {
-		properties.push({ name: 'id', value: element.id });
-	}
-	if (element.className) {
-		properties.push({ name: 'class', value: element.className });
-	}
-
-	// Add all data-* attributes
-	for (const attr of element.attributes) {
-		if (attr.name.startsWith('data-')) {
-			properties.push({ name: attr.name, value: attr.value });
+	function serializeElement(element) {
+		if (!element || typeof element.tagName !== 'string') {
+			return null;
 		}
+
+	const properties = {};
+	for (const attr of Array.from(element.attributes || [])) {
+		properties[attr.name] = attr.value;
 	}
 
 	return {
 		tag: element.tagName.toLowerCase(),
-		properties: properties,
+		properties,
+		innerText: element.innerText ?? '',
+		innerHTML: element.innerHTML, // inner markup for content-level inspection
+		outerHTML: element.outerHTML, // include wrapping tag + attributes so callers can reconstruct the full element
 	};
 }
 
@@ -230,7 +224,7 @@ export const messageHandler = (request, sender, sendResponse) => {
 							chrome.runtime.sendMessage({ action: 'fetchResult', payload: { identifier, success: true, data } });
 						} else {
 							// Execute interactive actions (click/fill/typeSmoothly)
-							const result = await performActionOnElement(payload);
+							await performActionOnElement(payload);
 							// Optionally we could send an acknowledgement to UI if needed later
 						}
 					} catch (err) {

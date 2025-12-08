@@ -10,7 +10,7 @@ export const commonProperties = [
 
 /* global chrome */
 
-export const handleHighlight = (tag, property, pattern) => {
+export const highlightByPattern = (tag, property, pattern) => {
 	if (!pattern) return;
 	chrome.runtime.sendMessage({
 		action: "highlightByPattern",
@@ -22,13 +22,17 @@ export const handleHighlight = (tag, property, pattern) => {
 	});
 };
 
-export const handleClear = () => {
+export const handleHighlight = highlightByPattern;
+
+export const clearHighlights = () => {
 	chrome.runtime.sendMessage({ action: "clearHighlight" });
 };
 
+export const handleClear = clearHighlights;
+
 // Send an executeAction command to the content script. If `identifier` is provided
 // and action === 'fetch', content script will echo back a `fetchResult` with same identifier.
-export const handleAction = (tag, property, pattern, order, action, actionValue, fetchType, identifier) => {
+export const executeAction = (tag, property, pattern, order, action, actionValue, fetchType, identifier) => {
 	const payload = {
 		componentType: tag,
 		propertyName: property,
@@ -45,5 +49,11 @@ export const handleAction = (tag, property, pattern, order, action, actionValue,
 		action: "executeAction",
 		payload,
 	});
+};
+
+export const handleAction = executeAction;
+
+export const highlightInteractables = () => {
+	chrome.runtime.sendMessage({ action: 'highlightInteractables' });
 };
 

@@ -14,7 +14,6 @@ import PropTypes from 'prop-types'
 import { useRuntime } from '../../../api/runtimeContext';
 import useApi from '../../../api/useApi';
 import { handleClear, handleAction, handleHighlight } from '../../../contentScript/interactionBridge';
-import useNotification from '../../../api/useNotification';
 function CircularProgressWithLabel(props) {
 	return (
 		<Box sx={{ position: 'relative', display: 'inline-flex' }}>
@@ -60,7 +59,6 @@ const ScrapComponent = () => {
 	const [scrapFlag, setScrapFlag] = useState(false);
 
 	const { addListener, removeListener } = useRuntime();
-	const notification = useNotification();
 	const api = useApi(import.meta.env.VITE_API_URL);
 	// Map of pending resolvers for fetch requests by identifier
 	const pendingResolvers = useRef(new Map());
@@ -294,7 +292,7 @@ const ScrapComponent = () => {
 			const promise_waitfor_joblist = new Promise((resolve) => pendingResolvers.current.set(id, resolve));
 			handleAction("div", "class", "?index_jobdetail-leave?", 0, "fetch", null, "content", id);
 			const object_waitfor_joblist = await promise_waitfor_joblist;
-			notification.info('Waiting for job list to reappear...');
+			console.log('Waiting for job list to reappear...');
 
 			success_wait_for_job_list = object_waitfor_joblist?.success;
 
@@ -326,15 +324,14 @@ const ScrapComponent = () => {
 			description: [Responsibilities?.success ? Responsibilities.data : "", Qualification?.success ? Qualification.data : "", Benefits?.success ? Benefits.data : ""].filter(s => s).join("\n\n"),
 			skills: Skills || [],
 		};
-		notification.info('Scrap completed, saving job to backend...');
+		console.log('Scrap completed, saving job to backend...');
 		// Send to backend
 		try {
 			await api.post('/jobs', resultData);
-			notification.success('Job saved successfully');
+			console.log('Job saved successfully');
 			setScrappedCount(prev => prev + 1);
 		} catch (err) {
-			notification.error('Failed to save job');
-			console.log('Error excuted', err);
+			console.error('Failed to save job', err);
 		}
 		setProgress(0);
 		handleClear();

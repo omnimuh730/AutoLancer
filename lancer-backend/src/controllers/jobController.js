@@ -10,6 +10,7 @@ import {
 import { calculateJobScores } from "../../../configs/jobScore.js";
 import { JobSource } from '../../../configs/pub.js';
 import { isJobBlocked, buildMongoQueryForRule } from '../utils/ruleMatcher.js';
+import { computeSkillScoreValue, getMissingSkills, refreshSkillScoresForSkills } from '../services/skillScoreService.js';
 
 export async function createJob(req, res) {
 	try {
@@ -67,8 +68,10 @@ export async function createJob(req, res) {
 
 		job._createdAt = createdAt;
 		job.postedAt = postedAt;
-		job.modelVersion = '1.0.0';
+		job.modelVersion = '1.12.8';
 
+		const skills = Array.isArray(job.skills) ? job.skills.map(s => String(s).trim()).filter(Boolean) : [];
+		let missingSkills = [];
 		try {
 			const companyTags = Array.isArray(job.company?.tags) ? job.company.tags.map(t => String(t).trim()).filter(Boolean) : [];
 			if (companyCategoryCollection && companyTags.length) {
@@ -82,22 +85,32 @@ export async function createJob(req, res) {
 				await companyCategoryCollection.bulkWrite(ops, { ordered: false });
 			}
 
-			const skills = Array.isArray(job.skills) ? job.skills.map(s => String(s).trim()).filter(Boolean) : [];
 			if (skillsCategoryCollection && skills.length) {
-				const ops = skills.map(skill => ({
-					updateOne: {
-						filter: { name: skill },
-						update: { $setOnInsert: { name: skill, createdAt: new Date().toISOString() } },
-						upsert: true,
-					}
-				}));
-				await skillsCategoryCollection.bulkWrite(ops, { ordered: false });
+				missingSkills = await getMissingSkills(skills);
+				if (missingSkills.length) {
+					const nowIso = new Date().toISOString();
+					const ops = missingSkills.map(skill => ({
+						updateOne: {
+							filter: { name: skill },
+							update: { $setOnInsert: { name: skill, createdAt: nowIso } },
+							upsert: true,
+						}
+					}));
+					await skillsCategoryCollection.bulkWrite(ops, { ordered: false });
+				}
 			}
 		} catch (e) {
 			console.warn('Failed to upsert categories', e);
 		}
 
+		job.skillScore = await computeSkillScoreValue(skills);
+
 		const result = jobsCollection ? await jobsCollection.insertOne(job) : null;
+
+		if (missingSkills.length) {
+			refreshSkillScoresForSkills(missingSkills).catch(err => console.error('Failed to refresh skill scores', err));
+		}
+
 		return res.status(201).json({ success: true, created: true, insertedId: result ? result.insertedId : null });
 	} catch (err) {
 		console.error('POST /api/jobs error', err);
@@ -184,14 +197,6 @@ export async function getJobs(req, res) {
 			const applierDoc = await accountInfoCollection.findOne({ name: applierName });
 			applierId = applierDoc?._id || null;
 		}
-		let userSkills = [];
-		if (sort === 'recommended') {
-			if (personalInfoCollection) {
-				const docs = await personalInfoCollection.find({}).toArray();
-				userSkills = docs.map(d => d.name);
-			}
-		}
-
 		const query = { $and: [] };
 
 		if (q) {
@@ -318,6 +323,12 @@ export async function getJobs(req, res) {
 
 		if (sort === 'recommended') {
 			docs = await jobsCollection.find(query).toArray();
+			let userSkills = [];
+			const needsUserSkills = docs.some(job => typeof job.skillScore !== 'number');
+			if (needsUserSkills && personalInfoCollection) {
+				const skillDocs = await personalInfoCollection.find({}).toArray();
+				userSkills = skillDocs.map(d => d.name);
+			}
 			docs.forEach(job => {
 				job._score = calculateJobScores(job, userSkills).overallScore;
 			});

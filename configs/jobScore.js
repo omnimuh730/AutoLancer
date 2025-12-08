@@ -69,10 +69,15 @@ const calculateSalaryScore = (jobMidSalary) => {
 
 export function calculateJobScores(job, userSkills) {
 	// Skill match
-	const requiredSkills = job.skills || [];
-	const userSkillSet = new Set((userSkills || []).map(s => s.toLowerCase()));
-	const matchedCount = requiredSkills.filter(req => userSkillSet.has(req.toLowerCase())).length;
-	const skillMatch = requiredSkills.length > 0 ? (matchedCount / requiredSkills.length) * 100 : 0;
+	let skillMatch;
+	if (typeof job?.skillScore === 'number' && Number.isFinite(job.skillScore)) {
+		skillMatch = job.skillScore;
+	} else {
+		const requiredSkills = job.skills || [];
+		const userSkillSet = new Set((userSkills || []).map(s => s.toLowerCase()));
+		const matchedCount = requiredSkills.filter(req => userSkillSet.has(String(req).toLowerCase())).length;
+		skillMatch = requiredSkills.length > 0 ? (matchedCount / requiredSkills.length) * 100 : 0;
+	}
 
 	// Applicants score
 	const applicantCount = job.applicants?.count <= 25 ? Math.floor(Math.random() * 15 + 10) : job.applicants?.count;

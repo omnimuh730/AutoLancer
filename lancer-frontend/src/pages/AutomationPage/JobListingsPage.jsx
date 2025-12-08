@@ -16,10 +16,19 @@ import { useApplier } from "../../context/ApplierContext.jsx";
 
 // Helper function to consistently get a string ID from a job object
 const getJobId = (job) => {
-	const id = job._id || job.id;
+	const id = job && (job._id || job.id);
 	if (!id) return null;
 	return typeof id === 'object' && id.$oid ? id.$oid : String(id);
 };
+
+const cloneJob = (job) => JSON.parse(JSON.stringify(job));
+const normalizeId = (value) => {
+	if (!value) return '';
+	if (typeof value === 'object' && value.$oid) return value.$oid;
+	return String(value);
+};
+
+const cloneStatusArray = (status) => Array.isArray(status) ? status.map(entry => ({ ...entry })) : [];
 
 function JobListingsPage() {
 	const [jobs, setJobs] = useState([]);
@@ -37,6 +46,24 @@ function JobListingsPage() {
 
 	const notification = useNotification();
 	const { applier } = useApplier();
+	const applierId = applier?._id ? normalizeId(applier._id) : null;
+
+	const replaceJob = useCallback((jobId, updater) => {
+		if (!jobId || typeof updater !== 'function') return;
+		setJobs(prev => prev.map(job => {
+			const currentId = getJobId(job);
+			if (currentId !== jobId) return job;
+			const nextJob = updater(job);
+			return nextJob || job;
+		}));
+	}, []);
+
+	const removeJobsLocally = useCallback((ids) => {
+		if (!Array.isArray(ids) || !ids.length) return;
+		const idSet = new Set(ids);
+		setJobs(prev => prev.filter(job => !idSet.has(getJobId(job))));
+		setSelectedIds(prev => prev.filter(id => !idSet.has(id)));
+	}, []);
 
 	const fetchJobs = useCallback(async () => {
 		try {
@@ -101,45 +128,104 @@ function JobListingsPage() {
 
 	const handleApplyJob = async (job) => {
 		const strId = getJobId(job);
-		if (!strId) return;
+		if (!strId || !applierId) {
+			notification.error('Select an applier before applying.');
+			return;
+		}
+		const previousSnapshot = cloneJob(job);
+		const optimisticEntry = { applier: applierId, appliedDate: new Date().toISOString() };
+		replaceJob(strId, (current) => {
+			const statusList = cloneStatusArray(current.status);
+			if (!statusList.some(entry => normalizeId(entry.applier) === applierId)) {
+				statusList.push(optimisticEntry);
+			}
+			return { ...current, status: statusList };
+		});
 		try {
-			await post(`/jobs/${strId}/apply`, { applied: true, applierName: applier?.name });
-			fetchJobs();
+			const res = await post(`/jobs/${strId}/apply`, { applied: true, applierName: applier?.name });
+			if (res && res.success && res.data) {
+				if (filters.applied === false) {
+					removeJobsLocally([strId]);
+				} else {
+					replaceJob(strId, () => res.data);
+				}
+			} else {
+				throw new Error('Apply API failed');
+			}
 		} catch (e) {
 			console.warn('Failed to mark job applied', e);
+			replaceJob(strId, () => previousSnapshot);
+			notification.error('Failed to mark job as applied');
 		}
 	};
 
 	const handleUpdateJobStatus = async (job, status) => {
 		const strId = getJobId(job);
-		if (!strId) return;
+		if (!strId || !applierId) {
+			notification.error('Select an applier before updating status.');
+			return;
+		}
+		const previousSnapshot = cloneJob(job);
+		replaceJob(strId, (current) => {
+			const statusList = cloneStatusArray(current.status);
+			const idx = statusList.findIndex(entry => normalizeId(entry.applier) === applierId);
+			if (idx === -1) return current;
+			const now = new Date().toISOString();
+			const updatedEntry = { ...statusList[idx] };
+			if (status === 'Declined') {
+				updatedEntry.declinedDate = now;
+				delete updatedEntry.scheduledDate;
+			} else if (status === 'Scheduled') {
+				updatedEntry.scheduledDate = now;
+				delete updatedEntry.declinedDate;
+			} else if (status === 'Applied') {
+				delete updatedEntry.declinedDate;
+				delete updatedEntry.scheduledDate;
+			}
+			statusList[idx] = updatedEntry;
+			return { ...current, status: statusList };
+		});
 		try {
 			const res = await post(`/jobs/${strId}/status`, { status, applierName: applier?.name });
-			if (res && res.success) {
+			if (res && res.success && res.data) {
+				replaceJob(strId, () => res.data);
 				notification.success(`Job status updated to ${status}`);
-				fetchJobs();
 			} else {
-				notification.error('Failed to update job status');
+				throw new Error('Failed to update status');
 			}
 		} catch (e) {
 			console.warn('Failed to update job status', e);
+			replaceJob(strId, () => previousSnapshot);
 			notification.error('Failed to update job status');
 		}
 	};
 
 	const handleUnapplyJob = async (job) => {
 		const strId = getJobId(job);
-		if (!strId) return;
+		if (!strId || !applierId) {
+			notification.error('Select an applier before unapplying.');
+			return;
+		}
+		const previousSnapshot = cloneJob(job);
+		replaceJob(strId, (current) => {
+			const statusList = cloneStatusArray(current.status).filter(entry => normalizeId(entry.applier) !== applierId);
+			return { ...current, status: statusList };
+		});
 		try {
 			const res = await post(`/jobs/${strId}/unapply`, { applierName: applier?.name });
-			if (res && res.success) {
+			if (res && res.success && res.data) {
+				if (filters.applied === true) {
+					removeJobsLocally([strId]);
+				} else {
+					replaceJob(strId, () => res.data);
+				}
 				notification.success('Successfully unapplied from job');
-				fetchJobs();
 			} else {
-				notification.error('Failed to unapply from job');
+				throw new Error('Failed to unapply');
 			}
 		} catch (e) {
 			console.warn('Failed to unapply from job', e);
+			replaceJob(strId, () => previousSnapshot);
 			notification.error('Failed to unapply from job');
 		}
 	};
@@ -155,16 +241,21 @@ function JobListingsPage() {
 
 	const handleRemoveSelected = async () => {
 		if (!selectedIds.length) return;
+		const previousJobs = jobs;
+		const previousSelected = selectedIds;
+		removeJobsLocally(selectedIds);
 		try {
 			const res = await post('/jobs/remove', { ids: selectedIds });
 			if (res && res.success) {
 				notification.success(`Removed ${res.deletedCount || 0} job(s)`);
 				setSelectedIds([]);
-				fetchJobs();
 			} else {
-				notification.error('Failed to remove jobs');
+				throw new Error('Failed to remove');
 			}
-		} catch {
+		} catch (err) {
+			console.warn('Failed to remove jobs', err);
+			setJobs(previousJobs);
+			setSelectedIds(previousSelected);
 			notification.error('Failed to remove jobs');
 		}
 	};

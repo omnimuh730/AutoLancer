@@ -24,6 +24,13 @@ async function initMongo() {
 	console.log('Connected to MongoDB', mongoUrl, 'DB:', mongoDbName);
 }
 
+async function closeMongo() {
+	if (mongoClient) {
+		await mongoClient.close();
+		mongoClient = null;
+	}
+}
+
 export {
 	initMongo,
 	jobsCollection,
@@ -31,5 +38,6 @@ export {
 	skillsCategoryCollection,
 	personalInfoCollection,
 	accountInfoCollection,
-	rulesCollection
+	rulesCollection,
+	closeMongo
 };

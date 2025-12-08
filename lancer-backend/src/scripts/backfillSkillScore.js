@@ -9,15 +9,7 @@ async function backfillSkillScores() {
 		process.exit(1);
 	}
 
-	const cursor = jobsCollection.find(
-		{
-			$or: [
-				{ skillScore: { $exists: false } },
-				{ modelVersion: { $ne: '1.12.8' } }
-			]
-		},
-		{ projection: { _id: 1, skills: 1 } }
-	);
+	const cursor = jobsCollection.find({}, { projection: { _id: 1, skills: 1 } });
 
 	let processed = 0;
 	while (await cursor.hasNext()) {

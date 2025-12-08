@@ -1,6 +1,7 @@
 import {
 	jobsCollection,
-	skillsCategoryCollection
+	skillsCategoryCollection,
+	personalInfoCollection
 } from "../db/mongo.js";
 
 const normalizeSkill = (skill) => {
@@ -8,19 +9,55 @@ const normalizeSkill = (skill) => {
 	return skill.trim();
 };
 
+const toComparable = (value) => normalizeSkill(value).toLowerCase();
+
 const uniqueNormalizedSkills = (skills = []) => {
-	return [...new Set(skills.map(normalizeSkill).filter(Boolean))];
+	const seen = new Set();
+	const result = [];
+	for (const skill of skills) {
+		const normalized = normalizeSkill(skill);
+		if (!normalized) continue;
+		const key = toComparable(normalized);
+		if (seen.has(key)) continue;
+		seen.add(key);
+		result.push(normalized);
+	}
+	return result;
 };
 
+const clampPercentage = (value) => {
+	if (!Number.isFinite(value)) return 0;
+	return Math.max(0, Math.min(100, Math.round(value)));
+};
+
+let cachedPersonalSkillSet = null;
+let cachedSkillSetLoadedAt = 0;
+const SKILL_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+async function getPersonalSkillSet(forceReload = false) {
+	if (!personalInfoCollection) return new Set();
+	const isCacheStale = Date.now() - cachedSkillSetLoadedAt > SKILL_CACHE_TTL_MS;
+	if (!cachedPersonalSkillSet || forceReload || isCacheStale) {
+		const docs = await personalInfoCollection.find({}, { projection: { name: 1 } }).toArray();
+		cachedPersonalSkillSet = new Set(docs.map(doc => toComparable(doc.name)).filter(Boolean));
+		cachedSkillSetLoadedAt = Date.now();
+	}
+	return cachedPersonalSkillSet;
+}
+
 export async function computeSkillScoreValue(skills = []) {
-	if (!skillsCategoryCollection || !Array.isArray(skills) || !skills.length) {
+	if (!Array.isArray(skills) || !skills.length) {
 		return 0;
 	}
 	const normalizedSkills = uniqueNormalizedSkills(skills);
 	if (!normalizedSkills.length) return 0;
+	const personalSkillSet = await getPersonalSkillSet();
+	if (!personalSkillSet || personalSkillSet.size === 0) {
+		return 0;
+	}
 
-	const matchedCount = await skillsCategoryCollection.countDocuments({ name: { $in: normalizedSkills } });
-	return Math.round((matchedCount / normalizedSkills.length) * 100);
+	const matchedCount = normalizedSkills.filter(skill => personalSkillSet.has(toComparable(skill))).length;
+	return clampPercentage((matchedCount / normalizedSkills.length) * 100);
 }
 
 export async function getMissingSkills(skills = []) {
@@ -30,9 +67,9 @@ export async function getMissingSkills(skills = []) {
 	const normalizedSkills = uniqueNormalizedSkills(skills);
 	if (!normalizedSkills.length) return [];
 
-	const existing = await skillsCategoryCollection.find({ name: { $in: normalizedSkills } }).project({ name: 1 }).toArray();
-	const existingSet = new Set(existing.map(doc => doc.name));
-	return normalizedSkills.filter(skill => !existingSet.has(skill));
+	const existingNames = await skillsCategoryCollection.distinct('name', { name: { $in: normalizedSkills } });
+	const existingSet = new Set(existingNames.map(toComparable));
+	return normalizedSkills.filter(skill => !existingSet.has(toComparable(skill)));
 }
 
 export async function refreshSkillScoresForSkills(skills = []) {

@@ -69,6 +69,20 @@ function normalizeStore(rawStore) {
 	};
 }
 
+function safeSendMessage(message) {
+	try {
+		const result = chrome.runtime?.sendMessage?.(message);
+		if (result && typeof result.catch === 'function') {
+			result.catch(() => {});
+		}
+	} catch (e) {
+		// Ignore missing receivers; log unexpected errors
+		if (!/Receiving end does not exist/.test(String(e))) {
+			console.error('Failed to send runtime message', e);
+		}
+	}
+}
+
 function persistJobBidStore() {
 	try {
 		chrome.storage?.local?.set({ [JOB_BID_STORAGE_KEY]: jobBidStore }, () => {
@@ -87,19 +101,11 @@ function broadcastJobBidStats() {
 		recent: jobBidStore.stats.recent,
 		lastResetAt: jobBidStore.lastResetAt
 	};
-	try {
-		chrome.runtime.sendMessage({ action: 'jobBidStats', payload });
-	} catch (e) {
-		console.error('Failed to broadcast job bid stats', e);
-	}
+	safeSendMessage({ action: 'jobBidStats', payload });
 }
 
 function broadcastJobBidStatusState() {
-	try {
-		chrome.runtime.sendMessage({ action: 'jobBidStatus:update', payload: jobBidStatusState });
-	} catch (e) {
-		console.error('Failed to broadcast job bid status', e);
-	}
+	safeSendMessage({ action: 'jobBidStatus:update', payload: jobBidStatusState });
 }
 
 function updateJobBidStatus(nextState) {
@@ -162,11 +168,7 @@ function notifyDuplicate(jobUrl, buttonText, firstDetectedAt, matchedUrl) {
 		againDetectedAt: Date.now(),
 		matchedUrl: matchedUrl || ''
 	};
-	try {
-		chrome.runtime.sendMessage({ action: 'jobBidDuplicate', payload });
-	} catch (e) {
-		console.error('Failed to broadcast duplicate job bid notice', e);
-	}
+	safeSendMessage({ action: 'jobBidDuplicate', payload });
 	updateJobBidStatus({
 		state: 'duplicate',
 		jobUrl: jobUrl || matchedUrl || '',

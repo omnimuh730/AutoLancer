@@ -14,88 +14,258 @@ const actionsToForward = [
   "executeAction"
 ];
 
-const JOB_BID_STORAGE_KEY = 'jobBidStats';
+const JOB_BID_STORAGE_KEY = 'jobBidStore';
 const MAX_RECENT_JOB_EVENTS = 5;
-const DEFAULT_JOB_BID_STATS = {
-	total: 0,
-	recent: []
+const MAX_TRACKED_JOBS = 500;
+const pendingStoreTasks = [];
+let storeReady = false;
+
+const createDefaultStore = () => ({
+	stats: {
+		total: 0,
+		recent: []
+	},
+	jobs: {},
+	lastResetAt: Date.now()
+});
+
+let jobBidStore = createDefaultStore();
+let jobBidStatusState = {
+	state: 'idle',
+	jobUrl: '',
+	timestamp: Date.now()
 };
 
-let jobBidStats = { ...DEFAULT_JOB_BID_STATS };
+function normalizeStore(rawStore) {
+	const defaults = createDefaultStore();
+	if (!rawStore || typeof rawStore !== 'object') return defaults;
 
-function normalizeStats(stats) {
-	if (!stats || typeof stats !== 'object') return { ...DEFAULT_JOB_BID_STATS };
-	const total = Number.isFinite(stats.total) ? stats.total : 0;
-	const recent = Array.isArray(stats.recent) ? stats.recent.slice(0, MAX_RECENT_JOB_EVENTS) : [];
+	const stats = rawStore.stats && typeof rawStore.stats === 'object' ? rawStore.stats : {};
+	const normalizedStats = {
+		total: Number.isFinite(stats.total) ? stats.total : 0,
+		recent: Array.isArray(stats.recent) ? stats.recent.slice(0, MAX_RECENT_JOB_EVENTS) : []
+	};
+
+	const normalizedJobs = {};
+	const rawJobs = rawStore.jobs && typeof rawStore.jobs === 'object' ? rawStore.jobs : {};
+	for (const [key, value] of Object.entries(rawJobs)) {
+		if (typeof value === 'number' && Number.isFinite(value)) {
+			normalizedJobs[key] = value;
+		}
+	}
+	const jobEntries = Object.entries(normalizedJobs).sort((a, b) => a[1] - b[1]);
+	const trimmedJobs = jobEntries.length > MAX_TRACKED_JOBS
+		? Object.fromEntries(jobEntries.slice(jobEntries.length - MAX_TRACKED_JOBS))
+		: normalizedJobs;
+
+	const lastResetAt = Number.isFinite(rawStore.lastResetAt) ? rawStore.lastResetAt : defaults.lastResetAt;
+
 	return {
-		total,
-		recent
+		stats: normalizedStats,
+		jobs: trimmedJobs,
+		lastResetAt
 	};
 }
 
-function loadJobBidStats() {
+function persistJobBidStore() {
 	try {
-		chrome.storage?.local?.get(JOB_BID_STORAGE_KEY, (items) => {
+		chrome.storage?.local?.set({ [JOB_BID_STORAGE_KEY]: jobBidStore }, () => {
 			if (chrome.runtime.lastError) {
-				console.error('Failed to read job bid stats', chrome.runtime.lastError);
-				return;
-			}
-			const stored = items?.[JOB_BID_STORAGE_KEY];
-			jobBidStats = normalizeStats(stored);
-		});
-	} catch (e) {
-		console.error('Error loading job bid stats', e);
-	}
-}
-
-function persistJobBidStats() {
-	try {
-		chrome.storage?.local?.set({ [JOB_BID_STORAGE_KEY]: jobBidStats }, () => {
-			if (chrome.runtime.lastError) {
-				console.error('Failed to persist job bid stats', chrome.runtime.lastError);
+				console.error('Failed to persist job bid store', chrome.runtime.lastError);
 			}
 		});
 	} catch (e) {
-		console.error('Error persisting job bid stats', e);
+		console.error('Error persisting job bid store', e);
 	}
 }
 
 function broadcastJobBidStats() {
+	const payload = {
+		total: jobBidStore.stats.total,
+		recent: jobBidStore.stats.recent,
+		lastResetAt: jobBidStore.lastResetAt
+	};
 	try {
-		chrome.runtime.sendMessage({ action: 'jobBidStats', payload: jobBidStats });
+		chrome.runtime.sendMessage({ action: 'jobBidStats', payload });
 	} catch (e) {
 		console.error('Failed to broadcast job bid stats', e);
 	}
 }
 
-function recordJobBid(payload) {
-	jobBidStats.total += 1;
-	const recentEvent = {
-		id: payload?.timestamp || Date.now(),
-		buttonText: payload?.buttonText || '',
-		buttonSignature: payload?.buttonSignature || '',
-		reason: payload?.reason || 'unknown',
-		urlBefore: payload?.urlBefore || '',
-		urlAfter: payload?.urlAfter || '',
-		matchedKeyword: payload?.matchedKeyword || null,
-		domChangePercent: typeof payload?.domChangePercent === 'number' ? payload.domChangePercent : null,
-		timestamp: payload?.timestamp || Date.now()
+function broadcastJobBidStatusState() {
+	try {
+		chrome.runtime.sendMessage({ action: 'jobBidStatus:update', payload: jobBidStatusState });
+	} catch (e) {
+		console.error('Failed to broadcast job bid status', e);
+	}
+}
+
+function updateJobBidStatus(nextState) {
+	jobBidStatusState = {
+		...jobBidStatusState,
+		...nextState,
+		timestamp: nextState?.timestamp || Date.now()
 	};
-	jobBidStats.recent = [recentEvent, ...jobBidStats.recent].slice(0, MAX_RECENT_JOB_EVENTS);
-	persistJobBidStats();
-	broadcastJobBidStats();
+	broadcastJobBidStatusState();
+}
+
+function normalizeJobUrl(jobUrl) {
+	if (!jobUrl || typeof jobUrl !== 'string') return null;
+	try {
+		const parsed = new URL(jobUrl);
+		parsed.hash = '';
+		parsed.search = '';
+		return parsed.toString();
+	} catch (e) {
+		return jobUrl.trim() || null;
+	}
+}
+
+function notifyDuplicate(jobUrl, buttonText, firstDetectedAt) {
+	const payload = {
+		jobUrl: jobUrl || '',
+		buttonText: buttonText || '',
+		firstDetectedAt,
+		againDetectedAt: Date.now()
+	};
+	try {
+		chrome.runtime.sendMessage({ action: 'jobBidDuplicate', payload });
+	} catch (e) {
+		console.error('Failed to broadcast duplicate job bid notice', e);
+	}
+	updateJobBidStatus({
+		state: 'duplicate',
+		jobUrl: jobUrl || '',
+		buttonText: buttonText || '',
+		firstDetectedAt
+	});
+}
+
+function enforceJobLimit() {
+	const jobEntries = Object.entries(jobBidStore.jobs);
+	if (jobEntries.length <= MAX_TRACKED_JOBS) return;
+	jobEntries.sort((a, b) => a[1] - b[1]);
+	jobBidStore.jobs = Object.fromEntries(jobEntries.slice(jobEntries.length - MAX_TRACKED_JOBS));
+}
+
+function withStoreReady(task) {
+	if (storeReady) {
+		task();
+		return;
+	}
+	pendingStoreTasks.push(task);
+}
+
+function flushPendingStoreTasks() {
+	if (!pendingStoreTasks.length) return;
+	const tasks = pendingStoreTasks.splice(0, pendingStoreTasks.length);
+	for (const task of tasks) {
+		try {
+			task();
+		} catch (e) {
+			console.error('Pending store task failed', e);
+		}
+	}
+}
+
+function recordJobBid(payload) {
+	withStoreReady(() => {
+		const timestamp = payload?.timestamp || Date.now();
+		const jobUrl = payload?.jobUrl || payload?.urlBefore || payload?.urlAfter || '';
+		const jobKey = normalizeJobUrl(jobUrl);
+
+		if (jobKey && jobBidStore.jobs[jobKey]) {
+			notifyDuplicate(jobUrl, payload?.buttonText, jobBidStore.jobs[jobKey]);
+			return;
+		}
+
+		if (jobKey) {
+			jobBidStore.jobs[jobKey] = timestamp;
+			enforceJobLimit();
+		}
+
+		jobBidStore.stats.total += 1;
+		const recentEvent = {
+			id: timestamp,
+			buttonText: payload?.buttonText || '',
+			buttonSignature: payload?.buttonSignature || '',
+			reason: payload?.reason || 'unknown',
+			jobUrl: jobUrl,
+			urlBefore: payload?.urlBefore || '',
+			urlAfter: payload?.urlAfter || '',
+			matchedKeyword: payload?.matchedKeyword || null,
+			domChangePercent: typeof payload?.domChangePercent === 'number' ? payload.domChangePercent : null,
+			timestamp
+		};
+		jobBidStore.stats.recent = [recentEvent, ...jobBidStore.stats.recent].slice(0, MAX_RECENT_JOB_EVENTS);
+		persistJobBidStore();
+		broadcastJobBidStats();
+		updateJobBidStatus({
+			state: 'counted',
+			jobUrl,
+			buttonText: payload?.buttonText || ''
+		});
+	});
 }
 
 function resetJobBidStats() {
-	jobBidStats = { ...DEFAULT_JOB_BID_STATS };
-	persistJobBidStats();
-	broadcastJobBidStats();
+	withStoreReady(() => {
+		jobBidStore = createDefaultStore();
+		persistJobBidStore();
+		broadcastJobBidStats();
+		updateJobBidStatus({ state: 'idle', jobUrl: '' });
+	});
+}
+
+function loadJobBidStore() {
+	try {
+		chrome.storage?.local?.get(JOB_BID_STORAGE_KEY, (items) => {
+			if (chrome.runtime.lastError) {
+				console.error('Failed to read job bid store', chrome.runtime.lastError);
+				jobBidStore = createDefaultStore();
+				persistJobBidStore();
+				storeReady = true;
+				flushPendingStoreTasks();
+				broadcastJobBidStats();
+				broadcastJobBidStatusState();
+				return;
+			}
+			const stored = items?.[JOB_BID_STORAGE_KEY];
+			if (!stored) {
+				jobBidStore = createDefaultStore();
+				persistJobBidStore();
+				storeReady = true;
+				flushPendingStoreTasks();
+				broadcastJobBidStats();
+				broadcastJobBidStatusState();
+				return;
+			}
+			jobBidStore = normalizeStore(stored);
+			storeReady = true;
+			flushPendingStoreTasks();
+			broadcastJobBidStats();
+			broadcastJobBidStatusState();
+		});
+	} catch (e) {
+		console.error('Error loading job bid store', e);
+		jobBidStore = createDefaultStore();
+		storeReady = true;
+		flushPendingStoreTasks();
+		broadcastJobBidStats();
+		broadcastJobBidStatusState();
+	}
 }
 
 function handleJobBidMessage(message) {
 	switch (message?.action) {
 		case 'jobBidApplied':
 			recordJobBid(message.payload || {});
+			return true;
+		case 'jobBidStatus':
+			updateJobBidStatus(message.payload || {});
+			return true;
+		case 'jobBidStatus:get':
+			broadcastJobBidStatusState();
 			return true;
 		case 'jobBid:getStats':
 			broadcastJobBidStats();
@@ -108,7 +278,7 @@ function handleJobBidMessage(message) {
 	}
 }
 
-loadJobBidStats();
+loadJobBidStore();
 
 // Messages coming from content scripts that should be relayed to the extension UI
 // Listen for messages from the UI and forward them to the content script or to backend

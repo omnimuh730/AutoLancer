@@ -25,11 +25,14 @@ const APPLIED_KEYWORDS = [
 	'application submitted',
 	'submitted your application',
 	'thanks for applying',
+	'thank you for applying',
+	'thanks so much for applying',
 	'already applied',
 	'you applied',
+	'application received',
+	'application has been received',
 	'we have received your application',
 	'thank you for your application',
-	'thank you for applying',
 	'we received your application',
 	'we have received your proposal',
 	'thank you for your proposal',
@@ -39,7 +42,6 @@ const APPLIED_KEYWORDS = [
 	'proposal submitted',
 	'bid submitted',
 	'bid placed',
-	'application received',
 	'you have applied',
 	'you have already applied'
 ];
@@ -48,8 +50,15 @@ const BUTTON_SELECTOR = 'button, a, input[type="submit"], input[type="button"], 
 const KEY_TRIGGER_SET = new Set(['Enter', ' ']);
 const hookedElements = new WeakSet();
 const activeDetections = new WeakMap();
-const MIN_DOM_DELTA = 0.2; // 20%
+const MIN_DOM_DELTA = 0.4; // 40%
 const MONITOR_WINDOW_MS = 15000;
+let buttonReportScheduled = false;
+
+function containsAppliedKeyword(text) {
+	if (!text || typeof text !== 'string') return null;
+	const lowered = text.toLowerCase();
+	return APPLIED_KEYWORDS.find((keyword) => lowered.includes(keyword));
+}
 
 function collectTextCandidates(element) {
 	if (!element) return [];
@@ -123,6 +132,7 @@ function hookElement(element) {
 	element.dataset.jobBidHooked = 'true';
 	element.addEventListener('click', handleClick, true);
 	element.addEventListener('keydown', handleKeyDown, true);
+	scheduleButtonReport();
 }
 
 function reportJobBid(payload) {
@@ -134,6 +144,59 @@ function reportJobBid(payload) {
 	} catch (e) {
 		console.error('Failed to send jobBidApplied message', e);
 	}
+}
+
+function sendJobBidStatus(status) {
+	try {
+		chrome?.runtime?.sendMessage?.({
+			action: 'jobBidStatus',
+			payload: {
+				...status,
+				jobUrl: status?.jobUrl || window.location.href,
+				timestamp: status?.timestamp || Date.now()
+			}
+		});
+	} catch (e) {
+		console.error('Failed to send jobBidStatus', e);
+	}
+}
+
+function summarizeButton(element) {
+	return {
+		text: getPrimaryLabel(element),
+		signature: buildElementSignature(element),
+		tag: element?.tagName?.toLowerCase() || ''
+	};
+}
+
+function collectTargetButtons(root = document) {
+	const scope = root instanceof Element ? root : document;
+	return Array.from(scope.querySelectorAll(BUTTON_SELECTOR)).filter(matchesTargetWord);
+}
+
+function reportCurrentButtons() {
+	const matches = collectTargetButtons(document);
+	if (matches.length === 0) {
+		sendJobBidStatus({
+			state: 'no-buttons',
+			buttonCount: 0
+		});
+		return;
+	}
+	sendJobBidStatus({
+		state: 'buttons-found',
+		buttonCount: matches.length,
+		buttons: matches.slice(0, 6).map(summarizeButton)
+	});
+}
+
+function scheduleButtonReport() {
+	if (buttonReportScheduled) return;
+	buttonReportScheduled = true;
+	requestAnimationFrame(() => {
+		buttonReportScheduled = false;
+		reportCurrentButtons();
+	});
 }
 
 function createDetection(element) {
@@ -163,12 +226,20 @@ function createDetection(element) {
 		finished = true;
 		cleanup();
 		activeDetections.delete(element);
-		if (reason === 'timeout' || reason === 'cancelled') return;
+		if (reason === 'timeout' || reason === 'cancelled') {
+			sendJobBidStatus({
+				state: 'not-counted',
+				reason,
+				button: summarizeButton(element)
+			});
+			return;
+		}
 
 		const payload = {
 			reason,
 			buttonText: getPrimaryLabel(element),
 			buttonSignature: buildElementSignature(element),
+			jobUrl: baselineUrl,
 			urlBefore: baselineUrl,
 			urlAfter: window.location.href,
 			domChangePercent: Number(domChangePercent.toFixed(3)),
@@ -176,6 +247,12 @@ function createDetection(element) {
 			timestamp: Date.now()
 		};
 
+		sendJobBidStatus({
+			state: 'applied',
+			reason,
+			button: summarizeButton(element),
+			jobUrl: baselineUrl
+		});
 		reportJobBid(payload);
 	};
 
@@ -190,8 +267,9 @@ function createDetection(element) {
 	};
 
 	const monitorKeywords = () => {
-		const bodyText = (document?.body?.innerText || '').toLowerCase();
-		const match = APPLIED_KEYWORDS.find((keyword) => bodyText.includes(keyword));
+		const bodyMatch = containsAppliedKeyword(document?.body?.innerText || '');
+		const titleMatch = containsAppliedKeyword(document?.title || '');
+		const match = bodyMatch || titleMatch;
 		if (match) {
 			matchedKeyword = match;
 			finalize('keyword');
@@ -227,7 +305,11 @@ function startDetection(element) {
 	if (!element || !document?.body) return;
 	const existing = activeDetections.get(element);
 	if (existing) return;
-
+	sendJobBidStatus({
+		state: 'triggered',
+		button: summarizeButton(element),
+		jobUrl: window.location.href
+	});
 	const detection = createDetection(element);
 	activeDetections.set(element, detection);
 	detection.start();
@@ -244,6 +326,7 @@ function observeNewButtons() {
 				}
 			});
 		}
+		scheduleButtonReport();
 	});
 	try {
 		observer.observe(document.body, { childList: true, subtree: true });
@@ -272,6 +355,7 @@ export function initJobBidMonitor() {
 		try {
 			scanElementAndChildren(document.body || document.documentElement);
 			observeNewButtons();
+			scheduleButtonReport();
 			document.addEventListener('submit', handleFormSubmit, true);
 		} catch (e) {
 			console.error('Failed to initialize job bid monitor', e);

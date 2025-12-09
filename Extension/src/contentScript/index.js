@@ -1,4 +1,5 @@
 import { messageHandler } from './messageHandler';
+import { initJobBidMonitor } from './jobBidMonitor';
 
 /* global chrome */
 
@@ -14,4 +15,10 @@ if (typeof window.contentScriptInjected === 'undefined') {
 			return false;
 		}
 	});
+
+	try {
+		initJobBidMonitor();
+	} catch (e) {
+		console.error('Failed to boot job bid monitor', e);
+	}
 }

@@ -9,12 +9,14 @@ import {
 import {
 	AutoAwesome,
 	TravelExplore,
-	ZoomIn
+	ZoomIn,
+	HowToReg
 } from '@mui/icons-material';
 
 import ComponentTracker from './Tracker';
 import ScrapperPage from './Scrapper';
 import AgentPage from './Agent';
+import BidCounter from './BidCounter';
 
 // Custom TabPanel component to handle tab content
 
@@ -57,6 +59,11 @@ const TabInfo = [
 		label: 'Tracker',
 		content: <ComponentTracker />,
 		icon: <ZoomIn />,
+	},
+	{
+		label: 'Counter',
+		content: <BidCounter />,
+		icon: <HowToReg />
 	},
 	{
 		label: 'Agent',

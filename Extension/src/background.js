@@ -33,6 +33,8 @@ let jobBidStore = createDefaultStore();
 let jobBidStatusState = {
 	state: 'idle',
 	jobUrl: '',
+	buttonText: '',
+	matchedUrl: '',
 	timestamp: Date.now()
 };
 
@@ -114,19 +116,51 @@ function normalizeJobUrl(jobUrl) {
 	try {
 		const parsed = new URL(jobUrl);
 		parsed.hash = '';
-		parsed.search = '';
-		return parsed.toString();
+		let pathname = parsed.pathname || '';
+		pathname = pathname.replace(/\/+$/, '');
+		if (!pathname.startsWith('/')) pathname = `/${pathname}`;
+		const params = new URLSearchParams(parsed.search || '');
+		const sortedEntries = Array.from(params.entries()).sort(([a], [b]) => a.localeCompare(b));
+		const normalizedSearch = sortedEntries.length
+			? `?${sortedEntries.map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`).join('&')}`
+			: '';
+		return `${parsed.origin}${pathname}${normalizedSearch}`;
 	} catch (e) {
 		return jobUrl.trim() || null;
 	}
 }
 
-function notifyDuplicate(jobUrl, buttonText, firstDetectedAt) {
+function sameHost(urlA, urlB) {
+	try {
+		const hostA = new URL(urlA).host;
+		const hostB = new URL(urlB).host;
+		return hostA === hostB;
+	} catch (e) {
+		return false;
+	}
+}
+
+function findDuplicateJob(jobKey) {
+	if (!jobKey) return null;
+	for (const [storedKey, firstDetectedAt] of Object.entries(jobBidStore.jobs)) {
+		if (!storedKey) continue;
+		if (storedKey === jobKey) {
+			return { storedKey, firstDetectedAt };
+		}
+		if (sameHost(jobKey, storedKey) && (storedKey.includes(jobKey) || jobKey.includes(storedKey))) {
+			return { storedKey, firstDetectedAt };
+		}
+	}
+	return null;
+}
+
+function notifyDuplicate(jobUrl, buttonText, firstDetectedAt, matchedUrl) {
 	const payload = {
 		jobUrl: jobUrl || '',
 		buttonText: buttonText || '',
 		firstDetectedAt,
-		againDetectedAt: Date.now()
+		againDetectedAt: Date.now(),
+		matchedUrl: matchedUrl || ''
 	};
 	try {
 		chrome.runtime.sendMessage({ action: 'jobBidDuplicate', payload });
@@ -135,9 +169,10 @@ function notifyDuplicate(jobUrl, buttonText, firstDetectedAt) {
 	}
 	updateJobBidStatus({
 		state: 'duplicate',
-		jobUrl: jobUrl || '',
+		jobUrl: jobUrl || matchedUrl || '',
 		buttonText: buttonText || '',
-		firstDetectedAt
+		firstDetectedAt,
+		matchedUrl: matchedUrl || ''
 	});
 }
 
@@ -171,11 +206,12 @@ function flushPendingStoreTasks() {
 function recordJobBid(payload) {
 	withStoreReady(() => {
 		const timestamp = payload?.timestamp || Date.now();
-		const jobUrl = payload?.jobUrl || payload?.urlBefore || payload?.urlAfter || '';
+		const jobUrl = payload?.jobUrl || payload?.urlAfter || payload?.urlBefore || '';
 		const jobKey = normalizeJobUrl(jobUrl);
 
-		if (jobKey && jobBidStore.jobs[jobKey]) {
-			notifyDuplicate(jobUrl, payload?.buttonText, jobBidStore.jobs[jobKey]);
+		const duplicate = findDuplicateJob(jobKey);
+		if (duplicate) {
+			notifyDuplicate(jobUrl, payload?.buttonText, duplicate.firstDetectedAt, duplicate.storedKey);
 			return;
 		}
 
@@ -203,7 +239,8 @@ function recordJobBid(payload) {
 		updateJobBidStatus({
 			state: 'counted',
 			jobUrl,
-			buttonText: payload?.buttonText || ''
+			buttonText: payload?.buttonText || '',
+			matchedUrl: ''
 		});
 	});
 }

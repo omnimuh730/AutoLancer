@@ -23,6 +23,7 @@ const DEFAULT_STATUS = {
 	buttons: [],
 	buttonText: '',
 	reason: '',
+	matchedUrl: '',
 	timestamp: null
 };
 
@@ -64,7 +65,9 @@ function StatusDetails({ status }) {
 			case 'counted':
 				return `Application counted (${status.reason || 'detected change'}).`;
 			case 'duplicate':
-				return 'Already applied to this job earlier.';
+				return status.matchedUrl
+					? `Already applied earlier (matches ${formatUrl(status.matchedUrl)}).`
+					: 'Already applied to this job earlier.';
 			case 'not-counted':
 				return `Interaction ended without confirmation (${status.reason || 'timeout'}).`;
 			case 'idle':
@@ -88,6 +91,11 @@ function StatusDetails({ status }) {
 			{status.jobUrl && (
 				<Typography variant="caption" color="text.secondary">
 					Page: {formatUrl(status.jobUrl)}
+				</Typography>
+			)}
+			{status.state === 'duplicate' && status.matchedUrl && status.matchedUrl !== status.jobUrl && (
+				<Typography variant="caption" color="text.secondary">
+					Matched job: {formatUrl(status.matchedUrl)}
 				</Typography>
 			)}
 		</Stack>
@@ -120,6 +128,7 @@ export default function BidCounter() {
 					buttons: Array.isArray(payload.buttons) ? payload.buttons : [],
 					buttonText: payload.buttonText || payload.button?.text || '',
 					reason: payload.reason || '',
+					matchedUrl: payload.matchedUrl || '',
 					timestamp: payload.timestamp || Date.now()
 				});
 			}
@@ -127,7 +136,8 @@ export default function BidCounter() {
 			if (message?.action === 'jobBidDuplicate') {
 				const payload = message.payload || {};
 				setDuplicateAlert({
-					jobUrl: payload.jobUrl || '',
+					jobUrl: payload.jobUrl || payload.matchedUrl || '',
+					matchedUrl: payload.matchedUrl || '',
 					buttonText: payload.buttonText || '',
 					firstDetectedAt: payload.firstDetectedAt || null
 				});
@@ -155,7 +165,7 @@ export default function BidCounter() {
 		<Stack spacing={3}>
 			{duplicateAlert && (
 				<Alert severity="info" onClose={() => setDuplicateAlert(null)}>
-					You've already applied on {formatTimestamp(duplicateAlert.firstDetectedAt)} for {formatUrl(duplicateAlert.jobUrl) || 'this job'}
+					You've already applied on {formatTimestamp(duplicateAlert.firstDetectedAt)} for {formatUrl(duplicateAlert.matchedUrl || duplicateAlert.jobUrl) || 'this job'}
 					{duplicateAlert.buttonText ? ` (“${duplicateAlert.buttonText}”)` : ''}.
 				</Alert>
 			)}

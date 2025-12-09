@@ -50,7 +50,7 @@ const BUTTON_SELECTOR = 'button, a, input[type="submit"], input[type="button"], 
 const KEY_TRIGGER_SET = new Set(['Enter', ' ']);
 const hookedElements = new WeakSet();
 const activeDetections = new WeakMap();
-const MIN_DOM_DELTA = 0.4; // 40%
+const MIN_DOM_DELTA = 0.2; // 20%
 const MONITOR_WINDOW_MS = 15000;
 let buttonReportScheduled = false;
 
@@ -208,6 +208,7 @@ function createDetection(element) {
 	let keywordInterval = null;
 	let urlInterval = null;
 	let timeoutId = null;
+	let handleUnload = null;
 	let finished = false;
 
 	const cleanup = () => {
@@ -215,6 +216,11 @@ function createDetection(element) {
 		if (keywordInterval) window.clearInterval(keywordInterval);
 		if (urlInterval) window.clearInterval(urlInterval);
 		if (timeoutId) window.clearTimeout(timeoutId);
+		if (handleUnload) {
+			window.removeEventListener('pagehide', handleUnload, true);
+			window.removeEventListener('beforeunload', handleUnload, true);
+			handleUnload = null;
+		}
 		observer = null;
 		keywordInterval = null;
 		urlInterval = null;
@@ -226,11 +232,14 @@ function createDetection(element) {
 		finished = true;
 		cleanup();
 		activeDetections.delete(element);
+		const currentUrl = window.location.href;
+
 		if (reason === 'timeout' || reason === 'cancelled') {
 			sendJobBidStatus({
 				state: 'not-counted',
 				reason,
-				button: summarizeButton(element)
+				button: summarizeButton(element),
+				jobUrl: currentUrl
 			});
 			return;
 		}
@@ -239,9 +248,9 @@ function createDetection(element) {
 			reason,
 			buttonText: getPrimaryLabel(element),
 			buttonSignature: buildElementSignature(element),
-			jobUrl: baselineUrl,
+			jobUrl: currentUrl,
 			urlBefore: baselineUrl,
-			urlAfter: window.location.href,
+			urlAfter: currentUrl,
 			domChangePercent: Number(domChangePercent.toFixed(3)),
 			matchedKeyword,
 			timestamp: Date.now()
@@ -251,7 +260,7 @@ function createDetection(element) {
 			state: 'applied',
 			reason,
 			button: summarizeButton(element),
-			jobUrl: baselineUrl
+			jobUrl: currentUrl
 		});
 		reportJobBid(payload);
 	};
@@ -294,6 +303,9 @@ function createDetection(element) {
 			keywordInterval = window.setInterval(monitorKeywords, 500);
 			urlInterval = window.setInterval(monitorUrl, 200);
 			timeoutId = window.setTimeout(() => finalize('timeout'), MONITOR_WINDOW_MS);
+			handleUnload = () => finalize('url-change');
+			window.addEventListener('pagehide', handleUnload, true);
+			window.addEventListener('beforeunload', handleUnload, true);
 		},
 		cancel() {
 			finalize('cancelled');

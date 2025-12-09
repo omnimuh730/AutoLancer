@@ -21,14 +21,11 @@ const getJobId = (job) => {
 	return typeof id === 'object' && id.$oid ? id.$oid : String(id);
 };
 
-const cloneJob = (job) => JSON.parse(JSON.stringify(job));
 const normalizeId = (value) => {
 	if (!value) return '';
 	if (typeof value === 'object' && value.$oid) return value.$oid;
 	return String(value);
 };
-
-const cloneStatusArray = (status) => Array.isArray(status) ? status.map(entry => ({ ...entry })) : [];
 
 function JobListingsPage() {
 	const [jobs, setJobs] = useState([]);
@@ -52,22 +49,6 @@ function JobListingsPage() {
 	const notification = useNotification();
 	const { applier } = useApplier();
 	const applierId = applier?._id ? normalizeId(applier._id) : null;
-
-	const getStatusEntryForApplier = useCallback((job) => {
-		if (!applierId || !job) return null;
-		const entries = Array.isArray(job.status) ? job.status : [];
-		return entries.find(entry => normalizeId(entry.applier) === applierId) || null;
-	}, [applierId]);
-
-	const replaceJob = useCallback((jobId, updater) => {
-		if (!jobId || typeof updater !== 'function') return;
-		setJobs(prev => prev.map(job => {
-			const currentId = getJobId(job);
-			if (currentId !== jobId) return job;
-			const nextJob = updater(job);
-			return nextJob || job;
-		}));
-	}, []);
 
 	const fetchJobs = useCallback(async (pageOverride = pagination.page, { silent = false } = {}) => {
 		const pageToFetch = typeof pageOverride === 'number' ? pageOverride : pagination.page;
@@ -155,15 +136,6 @@ function JobListingsPage() {
 			notification.error('Select an applier before applying.');
 			return;
 		}
-		const previousSnapshot = cloneJob(job);
-		const optimisticEntry = { applier: applierId, appliedDate: new Date().toISOString() };
-		replaceJob(strId, (current) => {
-			const statusList = cloneStatusArray(current.status);
-			if (!statusList.some(entry => normalizeId(entry.applier) === applierId)) {
-				statusList.push(optimisticEntry);
-			}
-			return { ...current, status: statusList };
-		});
 		try {
 			const res = await actionPost(`/jobs/${strId}/apply`, { applied: true, applierName: applier?.name });
 			if (res?.success) {
@@ -173,7 +145,6 @@ function JobListingsPage() {
 			}
 		} catch (e) {
 			console.warn('Failed to mark job applied', e);
-			replaceJob(strId, () => previousSnapshot);
 			notification.error('Failed to mark job as applied');
 		}
 	};
@@ -184,26 +155,6 @@ function JobListingsPage() {
 			notification.error('Select an applier before updating status.');
 			return;
 		}
-		const previousSnapshot = cloneJob(job);
-		replaceJob(strId, (current) => {
-			const statusList = cloneStatusArray(current.status);
-			const idx = statusList.findIndex(entry => normalizeId(entry.applier) === applierId);
-			if (idx === -1) return current;
-			const now = new Date().toISOString();
-			const updatedEntry = { ...statusList[idx] };
-			if (status === 'Declined') {
-				updatedEntry.declinedDate = now;
-				delete updatedEntry.scheduledDate;
-			} else if (status === 'Scheduled') {
-				updatedEntry.scheduledDate = now;
-				delete updatedEntry.declinedDate;
-			} else if (status === 'Applied') {
-				delete updatedEntry.declinedDate;
-				delete updatedEntry.scheduledDate;
-			}
-			statusList[idx] = updatedEntry;
-			return { ...current, status: statusList };
-		});
 		try {
 			const res = await actionPost(`/jobs/${strId}/status`, { status, applierName: applier?.name });
 			if (res?.success) {
@@ -214,7 +165,6 @@ function JobListingsPage() {
 			}
 		} catch (e) {
 			console.warn('Failed to update job status', e);
-			replaceJob(strId, () => previousSnapshot);
 			notification.error('Failed to update job status');
 		}
 	};
@@ -225,11 +175,6 @@ function JobListingsPage() {
 			notification.error('Select an applier before unapplying.');
 			return;
 		}
-		const previousSnapshot = cloneJob(job);
-		replaceJob(strId, (current) => {
-			const statusList = cloneStatusArray(current.status).filter(entry => normalizeId(entry.applier) !== applierId);
-			return { ...current, status: statusList };
-		});
 		try {
 			const res = await actionPost(`/jobs/${strId}/unapply`, { applierName: applier?.name });
 			if (res?.success) {
@@ -240,7 +185,6 @@ function JobListingsPage() {
 			}
 		} catch (e) {
 			console.warn('Failed to unapply from job', e);
-			replaceJob(strId, () => previousSnapshot);
 			notification.error('Failed to unapply from job');
 		}
 	};

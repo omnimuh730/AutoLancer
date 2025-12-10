@@ -38,6 +38,7 @@ function formatTimestamp(timestamp) {
 	try {
 		return new Date(timestamp).toLocaleString();
 	} catch (e) {
+		console.error('Failed to format timestamp', e);
 		return '—';
 	}
 }
@@ -48,6 +49,7 @@ function formatUrl(url) {
 		const parsed = new URL(url);
 		return parsed.hostname + parsed.pathname;
 	} catch (e) {
+		console.error('Failed to format URL', e);
 		return url;
 	}
 }

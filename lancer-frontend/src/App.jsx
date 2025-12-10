@@ -66,6 +66,8 @@ const NAVIGATION = [
 	},
 ];
 
+const baseFontFamily = '"Source Sans 3", "Segoe UI", Arial, sans-serif';
+
 const demoTheme = createTheme({
 	cssVariables: {
 		colorSchemeSelector: "data-toolpad-color-scheme",
@@ -78,6 +80,18 @@ const demoTheme = createTheme({
 			md: 600,
 			lg: 1200,
 			xl: 1536,
+		},
+	},
+	typography: {
+		fontFamily: baseFontFamily,
+	},
+	components: {
+		MuiCssBaseline: {
+			styleOverrides: {
+				body: {
+					fontFamily: baseFontFamily,
+				},
+			},
 		},
 	},
 });

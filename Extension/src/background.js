@@ -5,13 +5,13 @@ chrome.sidePanel
 
 // Actions that need to be sent to the content script
 const actionsToForward = [
-  "highlightByPattern",
-  "highlightBySelectors",
-  "highlightInteractables",
-  "executePlan",
-  "collectDomHints",
-  "clearHighlight",
-  "executeAction"
+	"highlightByPattern",
+	"highlightBySelectors",
+	"highlightInteractables",
+	"executePlan",
+	"collectDomHints",
+	"clearHighlight",
+	"executeAction"
 ];
 
 const JOB_BID_STORAGE_KEY = 'jobBidStore';
@@ -73,7 +73,7 @@ function safeSendMessage(message) {
 	try {
 		const result = chrome.runtime?.sendMessage?.(message);
 		if (result && typeof result.catch === 'function') {
-			result.catch(() => {});
+			result.catch(() => { });
 		}
 	} catch (e) {
 		// Ignore missing receivers; log unexpected errors
@@ -132,6 +132,7 @@ function normalizeJobUrl(jobUrl) {
 			: '';
 		return `${parsed.origin}${pathname}${normalizedSearch}`;
 	} catch (e) {
+		console.error('Failed to normalize job URL', e);
 		return jobUrl.trim() || null;
 	}
 }
@@ -142,6 +143,7 @@ function sameHost(urlA, urlB) {
 		const hostB = new URL(urlB).host;
 		return hostA === hostB;
 	} catch (e) {
+		console.error('Failed to compare hosts for URLs', e);
 		return false;
 	}
 }
@@ -321,7 +323,7 @@ loadJobBidStore();
 
 // Messages coming from content scripts that should be relayed to the extension UI
 // Listen for messages from the UI and forward them to the content script or to backend
-chrome.runtime.onMessage.addListener((message, sender/*, sendResponse*/) => {
+chrome.runtime.onMessage.addListener((message) => {
 	// UI -> background command: open multiple tabs (payload: { urls: [] })
 	if (message.action === 'open-tabs') {
 		const urls = message.payload && Array.isArray(message.payload.urls) ? message.payload.urls : [];

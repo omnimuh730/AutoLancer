@@ -100,6 +100,46 @@ function serializeElement(element) {
 	};
 }
 
+function aggregateChildrenText(children) {
+	if (!Array.isArray(children) || children.length === 0) return '';
+	const combined = children
+		.map((child) => (child?.innerText ?? ''))
+		.filter(Boolean)
+		.join(' ');
+	return normalizeText(combined);
+}
+
+function ensureContextualParents(parentChildMap) {
+	const contextualMap = new Map();
+
+	for (const [parent, children] of parentChildMap.entries()) {
+		const combinedChildText = aggregateChildrenText(children);
+		let finalParent = parent;
+		let guard = 0;
+
+		while (guard < 10) {
+			const parentText = normalizeText(finalParent.innerText);
+			const parentHasContext = parentText && (!combinedChildText || parentText !== combinedChildText);
+			if (parentHasContext) {
+				break;
+			}
+			const nextParent = findMeaningfulParent(finalParent);
+			if (!nextParent || nextParent === finalParent) {
+				break;
+			}
+			finalParent = nextParent;
+			guard++;
+		}
+
+		if (!contextualMap.has(finalParent)) {
+			contextualMap.set(finalParent, []);
+		}
+		contextualMap.get(finalParent).push(...children);
+	}
+
+	return contextualMap;
+}
+
 function applyAutolancerHighlight(element, variant = 'child') {
 	if (!element || !(element instanceof Element)) return;
 	ensureAgentStyles();
@@ -166,9 +206,11 @@ function groupAndHighlightComponents() {
 	}
 
 
+	const contextualMap = ensureContextualParents(parentChildMap);
+
 	// --- PHASE 3: MODIFIED to use the new serializer ---
 	const resultData = [];
-	for (const [parent, children] of parentChildMap.entries()) {
+	for (const [parent, children] of contextualMap.entries()) {
 		if (!parent.hasAttribute('data-highlighter-outline')) {
 			applyAutolancerHighlight(parent, 'parent');
 		}

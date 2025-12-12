@@ -21,6 +21,24 @@ function randomBetween(min, max) {
 	return Math.random() * (max - min) + min;
 }
 
+const SELECTION_UNSUPPORTED_TYPES = new Set([
+	'color',
+	'date',
+	'datetime-local',
+	'month',
+	'number',
+	'range',
+	'time',
+	'week',
+	'file'
+]);
+
+function supportsSelectionRange(element) {
+	if (!element || typeof element.setSelectionRange !== 'function') return false;
+	const type = (element.getAttribute('type') || element.type || 'text').toLowerCase();
+	return !SELECTION_UNSUPPORTED_TYPES.has(type);
+}
+
 function shouldEnhanceInput(element) {
 	if (!element || !(element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement)) return false;
 	if (element instanceof HTMLTextAreaElement) return true;
@@ -235,8 +253,12 @@ class AutolancerInputController {
 			}
 			this.input.value += char;
 			const length = this.input.value.length;
-			if (typeof this.input.setSelectionRange === 'function') {
-				this.input.setSelectionRange(length, length);
+			if (supportsSelectionRange(this.input)) {
+				try {
+					this.input.setSelectionRange(length, length);
+				} catch (err) {
+					console.debug('autolancer cursor setSelectionRange failed', err);
+				}
 			}
 			this.input.scrollLeft = this.input.scrollWidth;
 			if (this.input instanceof HTMLTextAreaElement) {

@@ -63,14 +63,16 @@ export function collectTextCandidates(element) {
 }
 
 export function matchesSubmitKeyword(element, keywords = SUBMIT_TARGET_KEYWORDS) {
+	const keywordPool = Array.isArray(keywords) && keywords.length ? keywords : SUBMIT_TARGET_KEYWORDS;
 	const candidates = collectTextCandidates(element);
 	if (!candidates.length) return false;
 	const lowered = candidates.map((text) => text.toLowerCase());
-	return lowered.some((text) => keywords.some((word) => text.includes(word)));
+	return lowered.some((text) => keywordPool.some((word) => text.includes(word)));
 }
 
 export function containsConfirmationKeyword(text, keywords = SUBMIT_CONFIRMATION_KEYWORDS) {
 	if (!text || typeof text !== 'string') return null;
+	const keywordPool = Array.isArray(keywords) && keywords.length ? keywords : SUBMIT_CONFIRMATION_KEYWORDS;
 	const lowered = text.toLowerCase();
-	return keywords.find((keyword) => lowered.includes(keyword));
+	return keywordPool.find((keyword) => lowered.includes(keyword));
 }

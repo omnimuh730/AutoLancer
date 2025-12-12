@@ -42,8 +42,8 @@ const styleContent = `
 	--autolancer-border-radius: 12px;
 	--autolancer-highlight-gradient: linear-gradient(120deg, #00c6ff, #4facfe, #00c6ff);
 	--autolancer-highlight-glow: rgba(79, 172, 254, 0.4);
-	--autolancer-glow-size: 4px;
-	box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 0 18px rgba(15, 23, 42, 0.4);
+	--autolancer-glow-size: 2px;
+	box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 0 12px rgba(15, 23, 42, 0.25);
 	isolation: isolate;
 	border-radius: var(--autolancer-border-radius, 12px);
 	transition: box-shadow 0.3s ease, transform 0.3s ease;
@@ -70,13 +70,13 @@ const styleContent = `
 .autolancer-highlight-base::after {
 	content: "";
 	position: absolute;
-	inset: calc(-1 * var(--autolancer-glow-size, 4px));
-	border-radius: calc(var(--autolancer-border-radius, 12px) + var(--autolancer-glow-size, 4px));
+	inset: calc(-1 * var(--autolancer-glow-size, 2px));
+	border-radius: calc(var(--autolancer-border-radius, 12px) + var(--autolancer-glow-size, 2px));
 	background: var(--autolancer-highlight-gradient, linear-gradient(120deg, #00c6ff, #4facfe, #00c6ff));
 	background-size: 250% 250%;
-	filter: blur(7px);
-	opacity: 0.65;
-	animation: autolancer-border-pulse 4s ease-in-out infinite, autolancer-border-wave 8s linear infinite;
+	filter: blur(4px);
+	opacity: 0.35;
+	animation: autolancer-border-wave 7s linear infinite;
 	pointer-events: none;
 	z-index: 1;
 }
@@ -84,19 +84,19 @@ const styleContent = `
 .autolancer-highlight-child {
 	--autolancer-highlight-gradient: linear-gradient(120deg, #ff416c, #ff4b2b, #ff416c);
 	--autolancer-highlight-glow: rgba(255, 65, 108, 0.55);
-	box-shadow: 0 0 0 1px rgba(255, 100, 130, 0.4), 0 0 18px rgba(255, 65, 108, 0.45), 0 0 35px rgba(255, 65, 108, 0.25);
+	box-shadow: 0 0 0 1px rgba(255, 100, 130, 0.4), 0 0 14px rgba(255, 65, 108, 0.35);
 }
 
 .autolancer-highlight-parent {
 	--autolancer-highlight-gradient: linear-gradient(120deg, #0f9b0f, #0b5126, #0f9b0f);
 	--autolancer-highlight-glow: rgba(15, 155, 15, 0.5);
-	box-shadow: 0 0 0 1px rgba(25, 100, 45, 0.4), 0 0 22px rgba(15, 155, 15, 0.45), 0 0 40px rgba(15, 155, 15, 0.25);
+	box-shadow: 0 0 0 1px rgba(25, 100, 45, 0.35), 0 0 16px rgba(15, 155, 15, 0.35);
 }
 
 .autolancer-highlight-submit {
 	--autolancer-highlight-gradient: linear-gradient(120deg, #00c6ff, #0072ff, #00c6ff);
 	--autolancer-highlight-glow: rgba(0, 150, 255, 0.55);
-	box-shadow: 0 0 0 1px rgba(0, 150, 255, 0.5), 0 0 24px rgba(0, 198, 255, 0.6), 0 0 45px rgba(0, 114, 255, 0.3);
+	box-shadow: 0 0 0 1px rgba(0, 150, 255, 0.45), 0 0 16px rgba(0, 198, 255, 0.45);
 }
 
 .autolancer-highlight-base::before,
@@ -163,26 +163,15 @@ const styleContent = `
 	width: 28px;
 	height: 28px;
 	border-radius: 50%;
-	background: linear-gradient(135deg, #00c6ff, #0072ff);
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	color: #fff;
-	font-size: 14px;
-	font-weight: 600;
-	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+	padding: 4px;
+	background: rgba(4, 18, 32, 0.9);
+	border: 1px solid rgba(255, 255, 255, 0.12);
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
 	cursor: pointer;
 	transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.autolancer-cursor-logo::after {
-	content: "";
-	position: absolute;
-	width: 12px;
-	height: 2px;
-	background: rgba(255, 255, 255, 0.7);
-	border-radius: 999px;
-	animation: autolancer-cursor-sheen 1.4s ease-in-out infinite;
+	display: block;
+	object-fit: contain;
+	filter: invert(1);
 }
 
 .autolancer-cursor-logo:hover {
@@ -252,4 +241,3 @@ export function ensureAgentStyles() {
 	style.textContent = styleContent;
 	(document.head || document.documentElement || document.body).appendChild(style);
 }
-

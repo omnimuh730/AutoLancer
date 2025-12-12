@@ -14,6 +14,9 @@ const actionsToForward = [
 	"executeAction"
 ];
 
+const TAB_MESSAGE_MAX_RETRIES = 5;
+const TAB_MESSAGE_RETRY_DELAY_MS = 200;
+
 const JOB_BID_STORAGE_KEY = 'jobBidStore';
 const MAX_RECENT_JOB_EVENTS = 5;
 const MAX_TRACKED_JOBS = 500;
@@ -321,6 +324,27 @@ function handleJobBidMessage(message) {
 
 loadJobBidStore();
 
+function sendMessageToTabWithRetry(tabId, message, attempt = 0) {
+	chrome.tabs.sendMessage(tabId, message, { frameId: 0 }, () => {
+		if (chrome.runtime.lastError) {
+			if (attempt >= TAB_MESSAGE_MAX_RETRIES) {
+				console.warn('Autolancer content script is not responding in tab', tabId, chrome.runtime.lastError);
+				return;
+			}
+			const nextAttempt = attempt + 1;
+			const delay = TAB_MESSAGE_RETRY_DELAY_MS * nextAttempt;
+			setTimeout(() => sendMessageToTabWithRetry(tabId, message, nextAttempt), delay);
+		}
+	});
+}
+
+function forwardMessageToActiveTab(message) {
+	chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+		if (!tabs?.length || !tabs[0]?.id) return;
+		sendMessageToTabWithRetry(tabs[0].id, message);
+	});
+}
+
 // Messages coming from content scripts that should be relayed to the extension UI
 // Listen for messages from the UI and forward them to the content script or to backend
 chrome.runtime.onMessage.addListener((message) => {
@@ -343,26 +367,7 @@ chrome.runtime.onMessage.addListener((message) => {
 	}
 
 	if (actionsToForward.includes(message.action)) {
-		chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-			if (tabs[0]?.id) {
-				const targetTabId = tabs[0].id;
-				const sendToTopFrame = () => {
-					chrome.tabs.sendMessage(targetTabId, message, { frameId: 0 }, () => {
-						if (chrome.runtime.lastError) {
-							// likely no listener in tab - inject content script then resend
-							chrome.scripting.executeScript({
-								target: { tabId: targetTabId },
-								files: ["contentScript.js"],
-							}, () => {
-								// ignore errors; try sending again
-								try { chrome.tabs.sendMessage(targetTabId, message, { frameId: 0 }); } catch (e) { console.error('Failed to send message after injecting contentScript', e); }
-							});
-						}
-					});
-				};
-				sendToTopFrame();
-			}
-		});
+		forwardMessageToActiveTab(message);
 		return;
 	}
 

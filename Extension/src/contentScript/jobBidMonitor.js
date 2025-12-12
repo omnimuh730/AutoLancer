@@ -1,50 +1,6 @@
+import { collectTextCandidates, matchesSubmitKeyword, containsConfirmationKeyword } from './submitDetector';
+
 /* global chrome */
-
-const TARGET_WORDS = [
-	'submit',
-	'send application',
-	'send proposal',
-	'apply',
-	'apply now',
-	'apply today',
-	'register',
-	'sign up',
-	'sign me up',
-	'get started',
-	'join now',
-	'next',
-	'continue',
-	'bid',
-	'place bid',
-	'send bid',
-	'confirm'
-];
-
-const APPLIED_KEYWORDS = [
-	'applied.',
-	'application submitted',
-	'submitted your application',
-	'thanks for applying',
-	'thank you for applying',
-	'thanks so much for applying',
-	'already applied',
-	'you applied',
-	'application received',
-	'application has been received',
-	'we have received your application',
-	'thank you for your application',
-	'we received your application',
-	'we have received your proposal',
-	'thank you for your proposal',
-	'thanks for your proposal',
-	'we received your proposal',
-	'proposal sent',
-	'proposal submitted',
-	'bid submitted',
-	'bid placed',
-	'you have applied',
-	'you have already applied'
-];
 
 const BUTTON_SELECTOR = 'button, a, input[type="submit"], input[type="button"], input[type="image"], [role="button"]';
 const KEY_TRIGGER_SET = new Set(['Enter', ' ']);
@@ -53,37 +9,6 @@ const activeDetections = new WeakMap();
 const MIN_DOM_DELTA = 0.2; // 20%
 const MONITOR_WINDOW_MS = 15000;
 let buttonReportScheduled = false;
-
-function containsAppliedKeyword(text) {
-	if (!text || typeof text !== 'string') return null;
-	const lowered = text.toLowerCase();
-	return APPLIED_KEYWORDS.find((keyword) => lowered.includes(keyword));
-}
-
-function collectTextCandidates(element) {
-	if (!element) return [];
-	const candidates = [
-		element.innerText,
-		element.value,
-		element.textContent,
-		element.getAttribute?.('aria-label'),
-		element.getAttribute?.('title'),
-		element.getAttribute?.('data-testid'),
-		element.getAttribute?.('name'),
-		element.getAttribute?.('id')
-	];
-
-	return candidates
-		.map((text) => (typeof text === 'string' ? text.trim() : ''))
-		.filter(Boolean);
-}
-
-function matchesTargetWord(element) {
-	const candidates = collectTextCandidates(element);
-	if (!candidates.length) return false;
-	const lowered = candidates.map((text) => text.toLowerCase());
-	return lowered.some((text) => TARGET_WORDS.some((word) => text.includes(word)));
-}
 
 function getPrimaryLabel(element) {
 	const candidates = collectTextCandidates(element);
@@ -119,7 +44,7 @@ function scanElementAndChildren(root) {
 
 function hookElement(element) {
 	if (!element || hookedElements.has(element)) return;
-	if (!matchesTargetWord(element)) return;
+	if (!matchesSubmitKeyword(element)) return;
 
 	const handleClick = () => startDetection(element);
 	const handleKeyDown = (event) => {
@@ -171,7 +96,7 @@ function summarizeButton(element) {
 
 function collectTargetButtons(root = document) {
 	const scope = root instanceof Element ? root : document;
-	return Array.from(scope.querySelectorAll(BUTTON_SELECTOR)).filter(matchesTargetWord);
+	return Array.from(scope.querySelectorAll(BUTTON_SELECTOR)).filter(matchesSubmitKeyword);
 }
 
 function reportCurrentButtons() {
@@ -276,8 +201,8 @@ function createDetection(element) {
 	};
 
 	const monitorKeywords = () => {
-		const bodyMatch = containsAppliedKeyword(document?.body?.innerText || '');
-		const titleMatch = containsAppliedKeyword(document?.title || '');
+		const bodyMatch = containsConfirmationKeyword(document?.body?.innerText || '');
+		const titleMatch = containsConfirmationKeyword(document?.title || '');
 		const match = bodyMatch || titleMatch;
 		if (match) {
 			matchedKeyword = match;
@@ -349,12 +274,12 @@ function observeNewButtons() {
 
 function handleFormSubmit(event) {
 	const submitter = event.submitter;
-	if (submitter && matchesTargetWord(submitter)) {
+	if (submitter && matchesSubmitKeyword(submitter)) {
 		startDetection(submitter);
 		return;
 	}
 	const fallbackButton = event.target?.querySelector?.(BUTTON_SELECTOR);
-	if (fallbackButton && matchesTargetWord(fallbackButton)) {
+	if (fallbackButton && matchesSubmitKeyword(fallbackButton)) {
 		startDetection(fallbackButton);
 	}
 }

@@ -2,6 +2,9 @@ import { findLowestCommonAncestor, findElements, waitForElements } from "./eleme
 import { isVisible } from "./domUtils";
 import { clearHighlights, highlightByPattern as doHighlightByPattern } from "./highlighter";
 import { performActionOnElement } from "./actionExecutor";
+import { ensureAgentStyles } from "./agentStyles";
+import { enableAutolancerInputEffects } from "./inputEffects";
+import { matchesSubmitKeyword } from "./submitDetector";
 
 /* global chrome */
 
@@ -78,7 +81,7 @@ function findMeaningfulParent(startNode) {
  * @param {HTMLElement} element The element to serialize.
  * @returns {Object|null} A structured object or null if the element is invalid.
  */
-	function serializeElement(element) {
+function serializeElement(element) {
 		if (!element || typeof element.tagName !== 'string') {
 			return null;
 		}
@@ -97,6 +100,32 @@ function findMeaningfulParent(startNode) {
 	};
 }
 
+function applyAutolancerHighlight(element, variant = 'child') {
+	if (!element || !(element instanceof Element)) return;
+	ensureAgentStyles();
+	const normalizedVariant = variant || 'child';
+	const previousVariant = element.getAttribute('data-autolancer-highlight');
+	element.classList.add('autolancer-highlight-base');
+	if (previousVariant && previousVariant !== normalizedVariant) {
+		element.classList.remove(`autolancer-highlight-${previousVariant}`);
+	}
+	element.classList.add(`autolancer-highlight-${normalizedVariant}`);
+	element.setAttribute('data-autolancer-highlight', normalizedVariant);
+
+	const computed = window.getComputedStyle(element);
+	if (computed.position === 'static' && !element.hasAttribute('data-autolancer-original-position')) {
+		element.setAttribute('data-autolancer-original-position', element.style.position || '');
+		element.style.position = 'relative';
+	}
+
+	const borderRadius = (computed.borderRadius || '').replace(/\s+/g, ' ').trim();
+	if (borderRadius && borderRadius !== '0px' && borderRadius !== '0px 0px 0px 0px') {
+		element.style.setProperty('--autolancer-border-radius', borderRadius);
+	} else if (!element.style.getPropertyValue('--autolancer-border-radius')) {
+		element.style.setProperty('--autolancer-border-radius', '12px');
+	}
+}
+
 
 /**
  * Groups red-highlighted nodes, highlights parents, and returns the structured data.
@@ -106,7 +135,6 @@ function groupAndHighlightComponents() {
 	const highlightedNodes = document.querySelectorAll('[data-highlighter-outline]');
 	const parentChildMap = new Map();
 	const processedChildren = new Set();
-	const specialButtonTexts = ['submit', 'next', 'apply'];
 
 	const fieldsets = document.querySelectorAll('fieldset');
 	for (const fieldset of fieldsets) {
@@ -122,8 +150,11 @@ function groupAndHighlightComponents() {
 	for (const node of highlightedNodes) {
 		if (processedChildren.has(node)) continue;
 		let parentComponent;
-		const nodeText = normalizeText(node.innerText).toLowerCase();
-		if (node.tagName === 'BUTTON' && specialButtonTexts.includes(nodeText)) {
+		const treatAsStandalone = matchesSubmitKeyword(node) && (
+			node.tagName === 'BUTTON' ||
+			node.matches('input[type="submit"], input[type="button"], [role="button"], a')
+		);
+		if (treatAsStandalone) {
 			parentComponent = node;
 		} else {
 			parentComponent = findMeaningfulParent(node);
@@ -138,13 +169,8 @@ function groupAndHighlightComponents() {
 	// --- PHASE 3: MODIFIED to use the new serializer ---
 	const resultData = [];
 	for (const [parent, children] of parentChildMap.entries()) {
-		// Highlighting logic is unchanged
-		if (parent.hasAttribute('data-highlighter-outline')) {
-			parent.style.outline = '4px solid limegreen';
-			parent.style.outlineOffset = '2px';
-		} else {
-			parent.style.outline = '3px solid green';
-			parent.style.outlineOffset = '2px';
+		if (!parent.hasAttribute('data-highlighter-outline')) {
+			applyAutolancerHighlight(parent, 'parent');
 		}
 		parent.setAttribute('data-highlighter-parent', 'true');
 
@@ -267,12 +293,14 @@ export const messageHandler = (request, sender, sendResponse) => {
 							try {
 								const originalOutline = targetElement.style.outline;
 								targetElement.setAttribute('data-highlighter-original-outline', originalOutline || '');
-								targetElement.style.outline = '2px solid red';
 								targetElement.setAttribute('data-highlighter-outline', 'true');
+								const variant = matchesSubmitKeyword(targetElement) ? 'submit' : 'child';
+								applyAutolancerHighlight(targetElement, variant);
 							} catch (e) { console.error('applyHighlight error for element:', el, e); }
 						}
 
 						const componentData = groupAndHighlightComponents();
+						enableAutolancerInputEffects();
 						console.log('Detected Component Structure:', componentData);
 
 						// Send the structured result back to the extension UI via background

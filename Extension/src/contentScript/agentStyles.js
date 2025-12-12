@@ -88,8 +88,8 @@ const styleContent = `
 }
 
 .autolancer-highlight-parent {
-	--autolancer-highlight-gradient: linear-gradient(120deg, #0f9b0f, #0b5126, #0f9b0f);
-	--autolancer-highlight-glow: rgba(15, 155, 15, 0.5);
+	--autolancer-highlight-gradient: linear-gradient(120deg, #0f9b0f34, #0b512691, #0f9b0f7e);
+	--autolancer-highlight-glow: rgba(15, 155, 15, 0.15);
 	box-shadow: 0 0 0 1px rgba(25, 100, 45, 0.35), 0 0 16px rgba(15, 155, 15, 0.35);
 }
 
@@ -228,9 +228,13 @@ const styleContent = `
 .autolancer-input-mirror {
 	position: absolute;
 	visibility: hidden;
-	white-space: pre;
+	white-space: pre-wrap;
+	word-break: break-word;
+	overflow-wrap: break-word;
 	pointer-events: none;
 	z-index: -1;
+	top: 0;
+	left: -9999px;
 }
 `;
 

@@ -96,6 +96,8 @@ class AutolancerInputController {
 		this.isActive = false;
 		this.cursor = null;
 		this.mirror = null;
+		this.caretMarker = document.createElement('span');
+		this.caretMarker.textContent = '\u200b';
 		this.isGenerating = false;
 		this.generationToken = null;
 
@@ -113,7 +115,7 @@ class AutolancerInputController {
 	init() {
 		if (!this.input) return;
 		this.cursor = this.createCursor();
-		this.mirror = document.createElement('span');
+		this.mirror = document.createElement('div');
 		this.mirror.className = AUTOLANCER_HIGHLIGHT_CLASSES.mirror;
 		document.body.appendChild(this.mirror);
 
@@ -279,22 +281,55 @@ class AutolancerInputController {
 		const textBeforeCursor = value.substring(0, selectionStart);
 
 		const computed = window.getComputedStyle(this.input);
-		this.mirror.style.font = computed.font;
-		this.mirror.style.letterSpacing = computed.letterSpacing;
-		this.mirror.style.textTransform = computed.textTransform;
-		this.mirror.textContent = textBeforeCursor || '\u200b';
-
 		const paddingLeft = parseFloat(computed.paddingLeft) || 0;
+		const paddingRight = parseFloat(computed.paddingRight) || 0;
+		const paddingTop = parseFloat(computed.paddingTop) || 0;
 		const borderLeft = parseFloat(computed.borderLeftWidth) || 0;
+		const borderRight = parseFloat(computed.borderRightWidth) || 0;
+		const borderTop = parseFloat(computed.borderTopWidth) || 0;
+		const borderBottom = parseFloat(computed.borderBottomWidth) || 0;
 		const scrollLeft = this.input.scrollLeft || 0;
-		const mirrorWidth = this.mirror.offsetWidth;
+		const scrollTop = this.input.scrollTop || 0;
+		const contentWidth = Math.max(1, rect.width - borderLeft - borderRight - paddingLeft - paddingRight);
 
-		const caretX = rect.left + paddingLeft + borderLeft + mirrorWidth - scrollLeft;
-		const clampedX = Math.max(rect.left, Math.min(rect.right, caretX));
-		const centerY = rect.top + rect.height / 2;
+		const mirror = this.mirror;
+		mirror.style.font = computed.font;
+		mirror.style.lineHeight = computed.lineHeight;
+		mirror.style.letterSpacing = computed.letterSpacing;
+		mirror.style.textTransform = computed.textTransform;
+		mirror.style.textAlign = computed.textAlign;
+		const isTextarea = this.input instanceof HTMLTextAreaElement;
+		mirror.style.whiteSpace = isTextarea ? 'pre-wrap' : 'pre';
+		const wrapValue = isTextarea ? 'break-word' : 'normal';
+		mirror.style.wordBreak = wrapValue;
+		mirror.style.overflowWrap = wrapValue;
+		mirror.style.width = `${contentWidth}px`;
+		mirror.style.boxSizing = 'content-box';
+		mirror.style.padding = '0';
+		mirror.style.border = '0';
+
+		mirror.textContent = '';
+		if (textBeforeCursor) {
+			mirror.appendChild(document.createTextNode(textBeforeCursor));
+		}
+		this.caretMarker.textContent = '\u200b';
+		mirror.appendChild(this.caretMarker);
+
+		const markerRect = this.caretMarker.getBoundingClientRect();
+		const mirrorRect = mirror.getBoundingClientRect();
+		const caretOffsetLeft = markerRect.left - mirrorRect.left;
+		const caretOffsetTop = markerRect.top - mirrorRect.top;
+
+		const caretX = rect.left + borderLeft + paddingLeft + caretOffsetLeft - scrollLeft;
+		const caretYTop = rect.top + borderTop + paddingTop + caretOffsetTop - scrollTop;
+		const caretLineHeight = markerRect.height || parseFloat(computed.lineHeight) || 16;
+		const caretCenterY = caretYTop + caretLineHeight / 2;
+
+		const clampedX = Math.max(rect.left + borderLeft, Math.min(rect.right - borderRight, caretX));
+		const clampedY = Math.max(rect.top + borderTop, Math.min(rect.bottom - borderBottom, caretCenterY));
 
 		this.cursor.style.left = `${clampedX}px`;
-		this.cursor.style.top = `${centerY}px`;
+		this.cursor.style.top = `${clampedY}px`;
 		this.cursor.style.display = 'flex';
 	}
 

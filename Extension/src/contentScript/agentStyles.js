@@ -157,6 +157,19 @@ const styleContent = `
 	align-items: center;
 	justify-content: center;
 	pointer-events: auto;
+	padding: 4px;
+	border-radius: 999px;
+}
+
+.autolancer-cursor-logo-wrapper::before {
+	content: "";
+	position: absolute;
+	top: -8px;
+	bottom: -14px;
+	left: -8px;
+	right: -8px;
+	border-radius: 999px;
+	pointer-events: auto;
 }
 
 .autolancer-cursor-logo {

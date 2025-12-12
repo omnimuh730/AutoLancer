@@ -12,6 +12,45 @@ import { JobSource } from '../../../configs/pub.js';
 import { isJobBlocked, buildMongoQueryForRule } from '../utils/ruleMatcher.js';
 import { computeSkillScoreValue, getMissingSkills, refreshSkillScoresForSkills } from '../services/skillScoreService.js';
 
+const DUPLICATE_LOOKBACK_DAYS = 30;
+const LOOKBACK_WINDOW_MS = DUPLICATE_LOOKBACK_DAYS * 24 * 60 * 60 * 1000;
+
+const toValidDate = (value) => {
+	if (!value) return null;
+	const date = new Date(value);
+	return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const resolvePostedAt = (job, now) => {
+	if (job.postedAt) {
+		const explicitPostedAt = toValidDate(job.postedAt);
+		if (explicitPostedAt) {
+			return explicitPostedAt.toISOString();
+		}
+	}
+
+	let postedAtDate = new Date(now);
+	if (job.postedAgo && typeof job.postedAgo === 'string') {
+		const match = job.postedAgo.match(/(\d+)\s+(minute|hour|day)/);
+		if (match) {
+			const value = parseInt(match[1], 10);
+			const unit = match[2];
+			if (unit === 'minute') {
+				postedAtDate.setMinutes(postedAtDate.getMinutes() - value);
+			} else if (unit === 'hour') {
+				postedAtDate.setHours(postedAtDate.getHours() - value);
+			} else if (unit === 'day') {
+				postedAtDate.setDate(postedAtDate.getDate() - value);
+			}
+		}
+	}
+	return postedAtDate.toISOString();
+};
+
+const extractJobTimestamp = (jobDoc) => {
+	return toValidDate(jobDoc?.postedAt) || toValidDate(jobDoc?._createdAt) || toValidDate(jobDoc?.createdAt);
+};
+
 export async function createJob(req, res) {
 	try {
 		const job = req.body;
@@ -29,40 +68,24 @@ export async function createJob(req, res) {
 			return res.status(200).json({ success: false, created: false, reason: `Blocked by rule: ${blockingRule}` });
 		}
 
-		// Requirement 1: if the url is duplicated from the any of existing data from last 20 days, job is not created.
-		if (job.url) {
-			const twentyDaysAgo = new Date();
-			twentyDaysAgo.setDate(twentyDaysAgo.getDate() - 20);
+		const now = new Date();
+		const createdAt = now.toISOString();
+		const postedAt = resolvePostedAt(job, now);
 
-			const existingJob = await jobsCollection.findOne({
-				url: job.url,
-				_createdAt: { $gte: twentyDaysAgo.toISOString() },
-			});
+		// Requirement 1: prevent duplicates for jobs posted within the last 30 days.
+		if (job.url) {
+			const existingJob = await jobsCollection.findOne(
+				{ url: job.url },
+				{ sort: { postedAt: -1, _createdAt: -1 } }
+			);
 
 			if (existingJob) {
-				return res.status(400).json({ error: 'Job with this URL has been posted recently' });
-			}
-		}
+				const existingTimestamp = extractJobTimestamp(existingJob);
+				const newJobTimestamp = toValidDate(postedAt);
 
-		const now = new Date();
-
-		const createdAt = now.toISOString();
-
-		let postedAt = createdAt;
-		if (job.postedAgo && typeof job.postedAgo === 'string') {
-			const match = job.postedAgo.match(/(\d+)\s+(minute|hour|day)/);
-			if (match) {
-				const value = parseInt(match[1], 10);
-				const unit = match[2];
-				const postedDate = new Date(now);
-				if (unit === 'minute') {
-					postedDate.setMinutes(postedDate.getMinutes() - value);
-				} else if (unit === 'hour') {
-					postedDate.setHours(postedDate.getHours() - value);
-				} else if (unit === 'day') {
-					postedDate.setDate(postedDate.getDate() - value);
+				if (!existingTimestamp || !newJobTimestamp || (newJobTimestamp.getTime() - existingTimestamp.getTime()) < LOOKBACK_WINDOW_MS) {
+					return res.status(400).json({ error: 'Job with this URL has been posted recently' });
 				}
-				postedAt = postedDate.toISOString();
 			}
 		}
 

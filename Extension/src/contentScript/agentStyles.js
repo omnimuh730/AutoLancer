@@ -16,197 +16,123 @@ export const AUTOLANCER_HIGHLIGHT_CLASSES = {
 };
 
 const styleContent = `
-@keyframes autolancer-border-wave {
-	0% { background-position: 0% 50%; }
-	50% { background-position: 100% 50%; }
-	100% { background-position: 0% 50%; }
-}
-
-@keyframes autolancer-border-pulse {
-	0% { transform: scale(0.98); opacity: 0.65; }
-	50% { transform: scale(1.01); opacity: 1; }
-	100% { transform: scale(0.98); opacity: 0.65; }
-}
-
-@keyframes autolancer-cursor-blink {
-	0%, 100% { opacity: 1; }
-	50% { opacity: 0; }
-}
-
-@keyframes autolancer-cursor-sheen {
-	0% { transform: translateX(0); }
-	100% { transform: translateX(8px); }
-}
-
+/* 
+   CORE HIGHLIGHTING 
+   Uses box-shadow for hardware-accelerated, non-layout-shifting borders.
+*/
 .autolancer-highlight-base {
-	--autolancer-border-radius: 12px;
-	--autolancer-highlight-gradient: linear-gradient(120deg, #00c6ff, #4facfe, #00c6ff);
-	--autolancer-highlight-glow: rgba(79, 172, 254, 0.4);
-	--autolancer-glow-size: 2px;
-	box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 0 12px rgba(15, 23, 42, 0.25);
-	isolation: isolate;
-	border-radius: var(--autolancer-border-radius, 12px);
-	transition: box-shadow 0.3s ease, transform 0.3s ease;
+	--autolancer-color: #00c6ff;
+	position: relative;
+	border-radius: 8px;
+	box-shadow: 0 0 0 2px var(--autolancer-color), 0 0 8px var(--autolancer-color);
+	transition: box-shadow 0.2s ease;
+	pointer-events: none; /* Let clicks pass through the highlight container */
 }
 
-.autolancer-highlight-base::before {
-	content: "";
-	position: absolute;
-	inset: 0;
-	padding: 2px;
-	border-radius: var(--autolancer-border-radius, 12px);
-	background: var(--autolancer-highlight-gradient, linear-gradient(120deg, #00c6ff, #4facfe, #00c6ff));
-	background-size: 250% 250%;
-	animation: autolancer-border-wave 5s linear infinite;
-	-webkit-mask:
-		linear-gradient(#000 0 0) content-box,
-		linear-gradient(#000 0 0);
-	-webkit-mask-composite: xor;
-	mask-composite: exclude;
-	pointer-events: none;
-	z-index: 2;
-}
-
-.autolancer-highlight-base::after {
-	content: "";
-	position: absolute;
-	inset: calc(-1 * var(--autolancer-glow-size, 2px));
-	border-radius: calc(var(--autolancer-border-radius, 12px) + var(--autolancer-glow-size, 2px));
-	background: var(--autolancer-highlight-gradient, linear-gradient(120deg, #00c6ff, #4facfe, #00c6ff));
-	background-size: 250% 250%;
-	filter: blur(4px);
-	opacity: 0.35;
-	animation: autolancer-border-wave 7s linear infinite;
-	pointer-events: none;
-	z-index: 1;
-}
-
+/* Specific Color States */
 .autolancer-highlight-child {
-	--autolancer-highlight-gradient: linear-gradient(120deg, #ff416c, #ff4b2b, #ff416c);
-	--autolancer-highlight-glow: rgba(255, 65, 108, 0.55);
-	box-shadow: 0 0 0 1px rgba(255, 100, 130, 0.4), 0 0 14px rgba(255, 65, 108, 0.35);
+	--autolancer-color: #ff416c; /* Red/Pink for errors/children */
 }
 
 .autolancer-highlight-parent {
-	--autolancer-highlight-gradient: linear-gradient(120deg, #0f9b0f34, #0b512691, #0f9b0f7e);
-	--autolancer-highlight-glow: rgba(15, 155, 15, 0.15);
-	box-shadow: 0 0 0 1px rgba(25, 100, 45, 0.35), 0 0 16px rgba(15, 155, 15, 0.35);
+	--autolancer-color: #28a745; /* Green for containers */
 }
 
 .autolancer-highlight-submit {
-	--autolancer-highlight-gradient: linear-gradient(120deg, #00c6ff, #0072ff, #00c6ff);
-	--autolancer-highlight-glow: rgba(0, 150, 255, 0.55);
-	box-shadow: 0 0 0 1px rgba(0, 150, 255, 0.45), 0 0 16px rgba(0, 198, 255, 0.45);
+	--autolancer-color: #0072ff; /* Deep Blue for actions */
 }
 
-.autolancer-highlight-base::before,
-.autolancer-highlight-base::after {
-	mix-blend-mode: screen;
-}
-
-.autolancer-highlight-base[data-autolancer-highlight="parent"]::before {
-	animation-duration: 6s;
-}
-
-.autolancer-highlight-base[data-autolancer-highlight="child"]::before {
-	animation-duration: 4s;
-}
-
-.autolancer-highlight-base[data-autolancer-highlight="submit"]::before {
-	animation-duration: 3.5s;
-}
-
-/* Input augmentation */
+/* 
+   INPUT AUGMENTATION 
+   Removed forced background/colors. Only adds the focus glow.
+*/
 .autolancer-input-enhanced {
-	border-radius: 12px !important;
-	border: 1px solid rgba(255, 255, 255, 0.15) !important;
-	background-color: rgba(7, 14, 27, 0.85) !important;
-	color: #f5f5f5 !important;
-	box-shadow: inset 0 0 15px rgba(255, 255, 255, 0.08), 0 0 30px rgba(14, 33, 82, 0.4);
-	caret-color: transparent !important;
-	transition: box-shadow 0.3s ease, border-color 0.3s ease, background-color 0.3s ease;
+	transition: box-shadow 0.2s ease;
 }
 
 .autolancer-input-enhanced:focus {
-	border-color: rgba(0, 198, 255, 0.8) !important;
-	box-shadow: inset 0 0 25px rgba(0, 198, 255, 0.2), 0 0 30px rgba(0, 198, 255, 0.35);
-	background-color: rgba(10, 25, 54, 0.95) !important;
+	outline: none !important;
+	box-shadow: 0 0 0 2px #00c6ff, 0 0 12px rgba(0, 198, 255, 0.6) !important;
 }
 
+/* 
+   CURSOR & UI ELEMENTS 
+   Removed the fake text caret bar to allow native accessibility.
+   Kept the Bot Menu/Logo but simplified the styling.
+*/
+
+/* Container for the floating UI helper */
 .autolancer-input-cursor {
 	position: fixed;
-	display: none;
+	display: none; /* JS toggles this to flex */
 	align-items: center;
 	pointer-events: none;
 	z-index: 2147483643;
 	transform: translateY(-50%);
 }
 
+/* Hide the fake vertical cursor bar, use native browser cursor instead */
 .autolancer-cursor-bar {
-	width: 2px;
-	height: 24px;
-	background: linear-gradient(180deg, rgba(0, 198, 255, 1), rgba(0, 114, 255, 1));
-	animation: autolancer-cursor-blink 1.2s steps(2, start) infinite;
-	box-shadow: 0 0 12px rgba(0, 198, 255, 0.9);
+	display: none; 
 }
 
 .autolancer-cursor-logo-wrapper {
 	position: relative;
-	margin-left: 6px;
+	margin-left: 4px;
 	display: flex;
 	align-items: center;
 	justify-content: center;
 	pointer-events: auto;
-	padding: 4px;
-	border-radius: 999px;
-}
-
-.autolancer-cursor-logo-wrapper::before {
-	content: "";
-	position: absolute;
-	top: -8px;
-	bottom: -14px;
-	left: -8px;
-	right: -8px;
-	border-radius: 999px;
-	pointer-events: auto;
 }
 
 .autolancer-cursor-logo {
-	width: 28px;
-	height: 28px;
+	width: 24px;
+	height: 24px;
 	border-radius: 50%;
-	padding: 4px;
-	background: rgba(4, 18, 32, 0.9);
-	border: 1px solid rgba(255, 255, 255, 0.12);
-	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+	background: #ffffff;
+	border: 1px solid #ccc;
+	box-shadow: 0 2px 5px rgba(0,0,0,0.2);
 	cursor: pointer;
-	transition: transform 0.2s ease, box-shadow 0.2s ease;
+	transition: transform 0.1s ease;
 	display: block;
 	object-fit: contain;
-	filter: invert(1);
 }
 
 .autolancer-cursor-logo:hover {
-	transform: scale(1.08);
-	box-shadow: 0 6px 15px rgba(0, 0, 0, 0.5);
+	transform: scale(1.1);
+	border-color: #00c6ff;
 }
 
+/* 
+   BOT MENU 
+   Clean, high-contrast readability.
+*/
 .autolancer-bot-menu {
 	position: absolute;
 	top: 110%;
-	left: -20px;
-	width: 200px;
-	background: rgba(7, 15, 32, 0.96);
-	border: 1px solid rgba(255, 255, 255, 0.12);
-	border-radius: 12px;
-	padding: 8px;
-	box-shadow: 0 12px 24px rgba(0, 0, 0, 0.5);
+	left: 0;
+	min-width: 180px;
+	background: #ffffff;
+	color: #333;
+	border: 1px solid #e0e0e0;
+	border-radius: 6px;
+	padding: 4px;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 	opacity: 0;
 	visibility: hidden;
-	transform: translateY(10px);
-	transition: opacity 0.2s ease, transform 0.2s ease;
+	transform: translateY(5px);
+	transition: opacity 0.1s ease, transform 0.1s ease;
 	pointer-events: none;
+	z-index: 2147483644;
+}
+
+/* Dark mode preference support for the menu */
+@media (prefers-color-scheme: dark) {
+	.autolancer-bot-menu {
+		background: #1a1a1a;
+		color: #f0f0f0;
+		border-color: #333;
+	}
 }
 
 .autolancer-cursor-logo-wrapper:hover .autolancer-bot-menu,
@@ -218,26 +144,29 @@ const styleContent = `
 }
 
 .autolancer-menu-item {
-	padding: 10px;
-	border-radius: 8px;
+	padding: 8px 12px;
+	border-radius: 4px;
 	font-size: 13px;
-	color: #cbd5f5;
+	font-family: sans-serif;
 	cursor: pointer;
-	transition: background 0.2s ease, color 0.2s ease;
 	display: flex;
 	align-items: center;
 	gap: 8px;
 }
 
-.autolancer-menu-item::before {
-	content: "⚡";
-}
-
 .autolancer-menu-item:hover {
-	background: linear-gradient(120deg, rgba(0, 198, 255, 0.15), rgba(0, 114, 255, 0.2));
-	color: #fff;
+	background-color: #f0f5ff;
+	color: #0072ff;
 }
 
+@media (prefers-color-scheme: dark) {
+	.autolancer-menu-item:hover {
+		background-color: #333;
+		color: #4facfe;
+	}
+}
+
+/* Utility for coordinate calculation - Must remain hidden */
 .autolancer-input-mirror {
 	position: absolute;
 	visibility: hidden;

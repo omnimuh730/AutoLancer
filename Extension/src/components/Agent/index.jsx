@@ -12,10 +12,16 @@ function AgentPage() {
 	const [error, setError] = useState(null);
 
 
-	const spiritApi = useApi(import.meta.env.VITE_SPIRIT_API_URL || 'http://localhost:3001');
+	const spiritApi = useApi(import.meta.env.VITE_SPIRIT_API_URL);
+	const { post: spiritPost, baseUrl: spiritBaseUrl } = spiritApi;
 
 	const analyzeComponents = useCallback(async (payload) => {
 		if (!payload) return;
+		if (!spiritBaseUrl) {
+			setError('Spirit AI service is not configured. Please set VITE_SPIRIT_API_URL and reload.');
+			setAnalysisData(null);
+			return;
+		}
 		setLoading(true);
 		setError(null);
 
@@ -25,7 +31,7 @@ function AgentPage() {
 			const body = {
 				userInput: JSON.stringify(payload, null, 2),
 			};
-			const result = await spiritApi.post('/analyze', body);
+			const result = await spiritPost('/analyze', body);
 			setAnalysisData(result || null);
 		} catch (e) {
 			console.error('Analyze request failed:', e);
@@ -33,7 +39,7 @@ function AgentPage() {
 		} finally {
 			setLoading(false);
 		}
-	}, [spiritApi]);
+	}, [spiritBaseUrl, spiritPost]);
 
 	useEffect(() => {
 		const listener = (message) => {

@@ -1,15 +1,29 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 
 // Minimal useApi hook for GET/POST JSON requests with loading/error state
 export default function useApi(baseUrl = import.meta.env.VITE_API_URL) {
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState(null);
 
+	const resolvedBaseUrl = useMemo(() => {
+		if (!baseUrl) return null;
+		const trimmed = String(baseUrl).trim();
+		if (!trimmed) return null;
+		return trimmed.replace(/\/$/, '');
+	}, [baseUrl]);
+
+	const buildUrl = useCallback((path) => {
+		if (!path) throw new Error('Missing request path');
+		if (/^https?:\/\//i.test(path)) return path;
+		if (!resolvedBaseUrl) throw new Error('API base URL is not configured');
+		return `${resolvedBaseUrl}/${path.replace(/^\//, '')}`;
+	}, [resolvedBaseUrl]);
+
 	const request = useCallback(async (path, options = {}) => {
 		setLoading(true);
 		setError(null);
 		try {
-			const url = baseUrl ? `${baseUrl.replace(/\/$/, '')}/${path.replace(/^\//, '')}` : path;
+			const url = buildUrl(path);
 			const res = await fetch(url, {
 				headers: { 'Content-Type': 'application/json' },
 				...options,
@@ -34,10 +48,10 @@ export default function useApi(baseUrl = import.meta.env.VITE_API_URL) {
 			setLoading(false);
 			throw err;
 		}
-	}, [baseUrl]);
+	}, [buildUrl]);
 
 	const get = useCallback((path) => request(path, { method: 'GET' }), [request]);
 	const post = useCallback((path, body) => request(path, { method: 'POST', body }), [request]);
 
-	return { loading, error, get, post, request };
+	return { loading, error, get, post, request, baseUrl: resolvedBaseUrl };
 }

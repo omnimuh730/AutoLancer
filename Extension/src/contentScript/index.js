@@ -1,5 +1,6 @@
 import { messageHandler } from './messageHandler';
 import { initJobBidMonitor } from './jobBidMonitor';
+import { enableAutolancerInputEffects } from './inputEffects';
 
 /* global chrome */
 
@@ -20,5 +21,11 @@ if (typeof window.contentScriptInjected === 'undefined') {
 		initJobBidMonitor();
 	} catch (e) {
 		console.error('Failed to boot job bid monitor', e);
+	}
+
+	try {
+		enableAutolancerInputEffects();
+	} catch (e) {
+		console.error('Failed to enable input effects', e);
 	}
 }

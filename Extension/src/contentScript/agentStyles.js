@@ -16,28 +16,6 @@ export const AUTOLANCER_HIGHLIGHT_CLASSES = {
 };
 
 const styleContent = `
-@keyframes autolancer-border-wave {
-	0% { background-position: 0% 50%; }
-	50% { background-position: 100% 50%; }
-	100% { background-position: 0% 50%; }
-}
-
-@keyframes autolancer-border-pulse {
-	0% { transform: scale(0.98); opacity: 0.65; }
-	50% { transform: scale(1.01); opacity: 1; }
-	100% { transform: scale(0.98); opacity: 0.65; }
-}
-
-@keyframes autolancer-cursor-blink {
-	0%, 100% { opacity: 1; }
-	50% { opacity: 0; }
-}
-
-@keyframes autolancer-cursor-sheen {
-	0% { transform: translateX(0); }
-	100% { transform: translateX(8px); }
-}
-
 .autolancer-highlight-base {
 	--autolancer-border-radius: 12px;
 	--autolancer-highlight-gradient: linear-gradient(120deg, #00c6ff, #4facfe, #00c6ff);
@@ -56,8 +34,7 @@ const styleContent = `
 	padding: 2px;
 	border-radius: var(--autolancer-border-radius, 12px);
 	background: var(--autolancer-highlight-gradient, linear-gradient(120deg, #00c6ff, #4facfe, #00c6ff));
-	background-size: 250% 250%;
-	animation: autolancer-border-wave 5s linear infinite;
+	background-size: 100% 100%;
 	-webkit-mask:
 		linear-gradient(#000 0 0) content-box,
 		linear-gradient(#000 0 0);
@@ -73,10 +50,9 @@ const styleContent = `
 	inset: calc(-1 * var(--autolancer-glow-size, 2px));
 	border-radius: calc(var(--autolancer-border-radius, 12px) + var(--autolancer-glow-size, 2px));
 	background: var(--autolancer-highlight-gradient, linear-gradient(120deg, #00c6ff, #4facfe, #00c6ff));
-	background-size: 250% 250%;
+	background-size: 100% 100%;
 	filter: blur(4px);
 	opacity: 0.35;
-	animation: autolancer-border-wave 7s linear infinite;
 	pointer-events: none;
 	z-index: 1;
 }
@@ -102,18 +78,6 @@ const styleContent = `
 .autolancer-highlight-base::before,
 .autolancer-highlight-base::after {
 	mix-blend-mode: screen;
-}
-
-.autolancer-highlight-base[data-autolancer-highlight="parent"]::before {
-	animation-duration: 6s;
-}
-
-.autolancer-highlight-base[data-autolancer-highlight="child"]::before {
-	animation-duration: 4s;
-}
-
-.autolancer-highlight-base[data-autolancer-highlight="submit"]::before {
-	animation-duration: 3.5s;
 }
 
 /* Input augmentation */
@@ -146,7 +110,6 @@ const styleContent = `
 	width: 2px;
 	height: 24px;
 	background: linear-gradient(180deg, rgba(0, 198, 255, 1), rgba(0, 114, 255, 1));
-	animation: autolancer-cursor-blink 1.2s steps(2, start) infinite;
 	box-shadow: 0 0 12px rgba(0, 198, 255, 0.9);
 }
 

@@ -13,7 +13,6 @@ function analyzeData(data) {
 
 	if (innerHTML_Children.length == 1) {
 		if (matchesSubmitKeyword(innerHTML_Children[0])) {
-			console.log('Submit Application button detected in component:');
 			return {
 				summary: 'Submit Application button detected.',
 				insights: data
@@ -23,15 +22,9 @@ function analyzeData(data) {
 
 	// Check if current item is unnecessary link like Terms of Privacy, Cookie Policy, etc.
 	let flagUnnecessary = false;
-	for (const childElement of innerHTML_Children) {
-		if (checkIfThisElementIsUnnecessary(childElement)) {
-			flagUnnecessary = true;
-			break;
-		}
-	}
+	flagUnnecessary = checkIfThisElementIsUnnecessary(innerHtml_Parent, innerHTML_Children) ? flagUnnecessary = true : flagUnnecessary = false;
 
-	if (flagUnnecessary) {
-		console.log('Unnecessary element detected in component:');
+	if (flagUnnecessary === true) {
 		return {
 			summary: 'Unnecessary element detected.',
 			insights: data

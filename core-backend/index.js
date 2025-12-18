@@ -91,6 +91,7 @@ app.post('/analyze', async (req, res) => {
 	//	console.log(analyzeComponentData);
 
 	analyzeResultSet = [];
+	console.log('Analyze endpoint processing started');
 
 	for (const component of analyzeComponentData.components) {
 		const analyzeResult = await analyzeData(component);

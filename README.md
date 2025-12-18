@@ -1,22 +1,22 @@
-# AIMS (Automated Intelligent-Sourcing for Jobs)
+# AutoLancer (Automated Intelligent-Sourcing for Jobs)
 
-AIMS is a comprehensive job application automation tool designed to streamline the job search process. It consists of three main components:
+lancer is a comprehensive job application automation tool designed to streamline the job search process. It consists of three main components:
 
--   **AIMS-frontend:** A web-based user interface for managing and tracking job applications.
--   **AIMS-backend:** A server that handles real-time communication between the frontend and the browser extension.
+-   **lancer-frontend:** A web-based user interface for managing and tracking job applications.
+-   **lancer-backend:** A server that handles real-time communication between the frontend and the browser extension.
 -   **Extension:** A browser extension that automates tasks related to job applications on various websites.
 
 ## Table of Contents
 
--   [AIMS-frontend](#aims-frontend)
--   [AIMS-backend](#aims-backend)
+-   [lancer-frontend](#lancer-frontend)
+-   [lancer-backend](#lancer-backend)
 -   [Extension](#extension)
 -   [Contributing](#contributing)
 -   [License](#license)
 
-## AIMS-frontend
+## lancer-frontend
 
-This is the frontend for the AIMS (Automated intelligent-sourcing for jobs) application. It provides a user interface for managing and automating job applications.
+This is the frontend for the lancer (Automated intelligent-sourcing for jobs) application. It provides a user interface for managing and automating job applications.
 
 ### Features
 
@@ -43,25 +43,25 @@ To get a local copy up and running, follow these simple steps.
 #### Prerequisites
 
 -   Node.js
--   npm or yarn
+-   yarn(not npm)
 
 #### Installation
 
 1. Clone the repo
     ```sh
-    git clone https://github.com/your_username_/AIMS.git
+    git clone https://github.com/your_username_/lancer.git
     ```
-2. Navigate to the AIMS-frontend directory
+2. Navigate to the lancer-frontend directory
     ```sh
-    cd AIMS-frontend
+    cd lancer-frontend
     ```
-3. Install NPM packages
+3. Install node packages
     ```sh
-    npm install
+    yarn install
     ```
 4. Start the development server
     ```sh
-    npm run dev
+    yarn dev
     ```
 
 ### Project Structure
@@ -88,9 +88,9 @@ The frontend communicates with the backend using Socket.io for real-time communi
 
 The `SOCKET_PROTOCOL` and `SOCKET_MESSAGE` from the `configs` directory are used to define the communication protocol between the frontend and the backend.
 
-## AIMS-backend
+## lancer-backend
 
-This is the backend for the AIMS (Automated intelligent-sourcing for jobs) application. It provides a web server that handles real-time communication with the frontend and the browser extension using Socket.io.
+This is the backend for the lancer (Automated intelligent-sourcing for jobs) application. It provides a web server that handles real-time communication with the frontend and the browser extension using Socket.io.
 
 ### Features
 
@@ -113,29 +113,29 @@ To get a local copy up and running, follow these simple steps.
 #### Prerequisites
 
 -   Node.js
--   npm or yarn
+-   yarn
 
 #### Installation
 
 1. Clone the repo
     ```sh
-    git clone https://github.com/your_username_/AIMS.git
+    git clone https://github.com/your_username_/lancer.git
     ```
-2. Navigate to the AIMS-backend directory
+2. Navigate to the lancer-backend directory
     ```sh
-    cd AIMS-backend
+    cd lancer-backend
     ```
-3. Install NPM packages
+3. Install node packages
     ```sh
-    npm install
+    yarn install
     ```
-4. Create a `.env` file in the root of the `AIMS-backend` directory and add the following environment variable:
+4. Create a `.env` file in the root of the `lancer-backend` directory and add the following environment variable:
     ```
     PORT=3000
     ```
 5. Start the development server
     ```sh
-    npm start
+    yarn start
     ```
 
 ### Project Structure
@@ -171,14 +171,14 @@ The communication protocol is defined in the `configs/socket_protocol.js` file.
 
 ## Extension
 
-This is the browser extension for the AIMS (Automated intelligent-sourcing for jobs) application. It provides a sidebar interface that allows users to interact with web pages and automate tasks related to job applications.
+This is the browser extension for the lancer (Automated intelligent-sourcing for jobs) application. It provides a sidebar interface that allows users to interact with web pages and automate tasks related to job applications.
 
 ### Features
 
 -   **Sidebar UI:** Provides a user interface within a side panel in the browser.
 -   **Element Highlighting:** Highlights elements on the web page based on user-defined patterns.
 -   **Action Execution:** Executes actions such as 'click', 'fill', and 'type' on web page elements.
--   **Real-time Communication:** Communicates with the AIMS backend in real-time using Socket.io.
+-   **Real-time Communication:** Communicates with the lancer backend in real-time using Socket.io.
 
 ### Technologies Used
 
@@ -195,25 +195,25 @@ To get a local copy up and running, follow these simple steps.
 #### Prerequisites
 
 -   Node.js
--   npm or yarn
+-   yarn
 
 #### Installation
 
 1. Clone the repo
     ```sh
-    git clone https://github.com/your_username_/AIMS.git
+    git clone https://github.com/your_username_/lancer.git
     ```
 2. Navigate to the Extension directory
     ```sh
     cd Extension
     ```
-3. Install NPM packages
+3. Install Node packages
     ```sh
-    npm install
+    yarn install
     ```
 4. Build the extension
     ```sh
-    npm run build
+    yarn build
     ```
 5. Open Chrome and navigate to `chrome://extensions`.
 6. Enable "Developer mode".
@@ -250,7 +250,7 @@ The extension is composed of three main parts:
 
 The different parts of the extension communicate with each other using the `chrome.runtime.onMessage` and `chrome.tabs.sendMessage` APIs. The background script acts as a message broker, relaying messages between the UI and the content script.
 
-The extension also communicates with the AIMS backend using Socket.io. The socket connection is managed in the `src/api/socket.jsx` file.
+The extension also communicates with the lancer backend using Socket.io. The socket connection is managed in the `src/api/socket.jsx` file.
 
 ## Contributing
 

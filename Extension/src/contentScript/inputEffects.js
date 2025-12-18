@@ -1,10 +1,16 @@
 import { AUTOLANCER_HIGHLIGHT_CLASSES, ensureAgentStyles } from './agentStyles';
 
-const INPUT_SELECTOR = 'input:not([type="hidden"]):not([disabled]):not([readonly]), textarea:not([disabled]):not([readonly])';
+// STRICTER SELECTOR: Explicitly excludes buttons, checkboxes, radios, range, etc.
+const INPUT_SELECTOR = `
+	textarea:not([disabled]):not([readonly]),
+	input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="file"]):not([type="image"]):not([type="range"]):not([type="color"]):not([disabled]):not([readonly])
+`;
+
+// Allowed types for the logic check
 const TEXT_INPUT_TYPES = new Set(['text', 'search', 'email', 'url', 'password', 'number', 'tel']);
-const DEFAULT_AUTOFILL_TEXT = "Hello world! This is a generated response. Lerium pepsa infinite loop of knowledge...  Everything is running asynchronously and concurrently.";
-const AUTOFILL_MIN_DELAY = 20;
-const AUTOFILL_MAX_DELAY = 70;
+const DEFAULT_AUTOFILL_TEXT = "Hello! I am your AI agent. I can fill this form for you automatically.";
+const AUTOFILL_MIN_DELAY = 10;
+const AUTOFILL_MAX_DELAY = 40;
 
 const CURSOR_LOGO_SRC = 'https://www.svgrepo.com/show/306500/openai.svg';
 const CURSOR_LOGO_ALT = 'Autolancer bot';
@@ -22,33 +28,32 @@ function randomBetween(min, max) {
 }
 
 const SELECTION_UNSUPPORTED_TYPES = new Set([
-	'color',
-	'date',
-	'datetime-local',
-	'month',
-	'number',
-	'range',
-	'time',
-	'week',
-	'file'
+	'email', 'number', 'date', 'datetime-local', 'month', 'time', 'week'
 ]);
 
 function supportsSelectionRange(element) {
 	if (!element || typeof element.setSelectionRange !== 'function') return false;
 	const type = (element.getAttribute('type') || element.type || 'text').toLowerCase();
+	// Chrome throws error on setSelectionRange for specific types (like email/number in some versions)
+	// We wrap in try-catch in the usage just in case, but filtering helps.
 	return !SELECTION_UNSUPPORTED_TYPES.has(type);
 }
 
 function shouldEnhanceInput(element) {
-	if (!element || !(element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement)) return false;
+	if (!element) return false;
 	if (element instanceof HTMLTextAreaElement) return true;
-	const type = (element.getAttribute('type') || 'text').toLowerCase();
-	return TEXT_INPUT_TYPES.has(type);
+	if (element instanceof HTMLInputElement) {
+		const type = (element.getAttribute('type') || 'text').toLowerCase();
+		return TEXT_INPUT_TYPES.has(type);
+	}
+	return false;
 }
 
 function ensureController(element) {
+	// Double check logic to ensure we never attach to a button or checkbox
 	if (!shouldEnhanceInput(element)) return;
 	if (controllers.has(element)) return;
+
 	const controller = new AutolancerInputController(element);
 	controllers.set(element, controller);
 }
@@ -68,10 +73,16 @@ function startObserver() {
 		mutations.forEach((mutation) => {
 			mutation.addedNodes?.forEach((node) => {
 				if (!(node instanceof Element)) return;
-				if (node.matches?.(INPUT_SELECTOR)) {
+
+				// Check the node itself
+				if (node.matches && node.matches(INPUT_SELECTOR)) {
 					ensureController(node);
 				}
-				node.querySelectorAll?.(INPUT_SELECTOR).forEach((el) => ensureController(el));
+
+				// Check children
+				if (node.querySelectorAll) {
+					node.querySelectorAll(INPUT_SELECTOR).forEach((el) => ensureController(el));
+				}
 			});
 		});
 		removeStaleControllers();
@@ -93,7 +104,11 @@ function stopObserver() {
 export function enableAutolancerInputEffects() {
 	ensureAgentStyles();
 	if (!document?.body) return;
-	document.querySelectorAll(INPUT_SELECTOR).forEach((element) => ensureController(element));
+
+	// Initial scan with stricter selector
+	const elements = document.querySelectorAll(INPUT_SELECTOR);
+	elements.forEach((element) => ensureController(element));
+
 	removeStaleControllers();
 	if (!effectsEnabled) {
 		startObserver();
@@ -150,9 +165,6 @@ class AutolancerInputController {
 		const cursor = document.createElement('div');
 		cursor.className = AUTOLANCER_HIGHLIGHT_CLASSES.cursor;
 
-		const bar = document.createElement('div');
-		bar.className = AUTOLANCER_HIGHLIGHT_CLASSES.cursorBar;
-
 		const logoWrapper = document.createElement('div');
 		logoWrapper.className = AUTOLANCER_HIGHLIGHT_CLASSES.cursorLogoWrapper;
 
@@ -167,7 +179,7 @@ class AutolancerInputController {
 
 		const menuItem = document.createElement('div');
 		menuItem.className = AUTOLANCER_HIGHLIGHT_CLASSES.menuItem;
-		menuItem.textContent = 'Autolancer Agent';
+		menuItem.textContent = 'Autofill with AI';
 		menuItem.addEventListener('mousedown', this.handleMenuAction);
 
 		menu.appendChild(menuItem);
@@ -180,7 +192,6 @@ class AutolancerInputController {
 			this.input?.focus();
 		});
 
-		cursor.appendChild(bar);
 		cursor.appendChild(logoWrapper);
 		document.body.appendChild(cursor);
 		return cursor;
@@ -196,8 +207,14 @@ class AutolancerInputController {
 	}
 
 	handleBlur() {
-		this.isActive = false;
-		this.cursor.style.display = 'none';
+		// Delay hiding to allow menu clicks
+		setTimeout(() => {
+			if (document.activeElement !== this.input) {
+				this.isActive = false;
+				this.cursor.style.display = 'none';
+			}
+		}, 150);
+
 		document.removeEventListener('selectionchange', this.handleSelectionChange);
 		window.removeEventListener('scroll', this.updateCursor, true);
 		window.removeEventListener('resize', this.updateCursor);
@@ -253,17 +270,21 @@ class AutolancerInputController {
 			}
 			this.input.value += char;
 			const length = this.input.value.length;
+
+			// Try to set cursor position if supported
 			if (supportsSelectionRange(this.input)) {
 				try {
 					this.input.setSelectionRange(length, length);
 				} catch (err) {
-					console.debug('autolancer cursor setSelectionRange failed', err);
+					// Ignore specific browser errors for inputs that reject selection setting
 				}
 			}
+
 			this.input.scrollLeft = this.input.scrollWidth;
 			if (this.input instanceof HTMLTextAreaElement) {
 				this.input.scrollTop = this.input.scrollHeight;
 			}
+
 			this.dispatchInputEvent();
 			this.updateCursor();
 			await wait(randomBetween(AUTOFILL_MIN_DELAY, AUTOFILL_MAX_DELAY));
@@ -296,24 +317,26 @@ class AutolancerInputController {
 			return;
 		}
 
-		const selectionStart = typeof this.input.selectionStart === 'number'
-			? this.input.selectionStart
-			: (this.input.value || '').length;
+		const computed = window.getComputedStyle(this.input);
+
+		// Fallback for selection start
+		let selectionStart = (this.input.value || '').length;
+		try {
+			if (typeof this.input.selectionStart === 'number') {
+				selectionStart = this.input.selectionStart;
+			}
+		} catch (e) { /* ignore */ }
+
 		const value = this.input.value || '';
 		const textBeforeCursor = value.substring(0, selectionStart);
 
-		const computed = window.getComputedStyle(this.input);
 		const paddingLeft = parseFloat(computed.paddingLeft) || 0;
 		const paddingRight = parseFloat(computed.paddingRight) || 0;
-		const paddingTop = parseFloat(computed.paddingTop) || 0;
 		const borderLeft = parseFloat(computed.borderLeftWidth) || 0;
 		const borderRight = parseFloat(computed.borderRightWidth) || 0;
-		const borderTop = parseFloat(computed.borderTopWidth) || 0;
-		const borderBottom = parseFloat(computed.borderBottomWidth) || 0;
-		const scrollLeft = this.input.scrollLeft || 0;
-		const scrollTop = this.input.scrollTop || 0;
 		const contentWidth = Math.max(1, rect.width - borderLeft - borderRight - paddingLeft - paddingRight);
 
+		// Mirror setup
 		const mirror = this.mirror;
 		mirror.style.font = computed.font;
 		mirror.style.lineHeight = computed.lineHeight;
@@ -326,7 +349,6 @@ class AutolancerInputController {
 		mirror.style.wordBreak = wrapValue;
 		mirror.style.overflowWrap = wrapValue;
 		mirror.style.width = `${contentWidth}px`;
-		mirror.style.boxSizing = 'content-box';
 		mirror.style.padding = '0';
 		mirror.style.border = '0';
 
@@ -339,14 +361,23 @@ class AutolancerInputController {
 
 		const markerRect = this.caretMarker.getBoundingClientRect();
 		const mirrorRect = mirror.getBoundingClientRect();
+
+		const scrollLeft = this.input.scrollLeft || 0;
+		const scrollTop = this.input.scrollTop || 0;
+
 		const caretOffsetLeft = markerRect.left - mirrorRect.left;
 		const caretOffsetTop = markerRect.top - mirrorRect.top;
 
+		const paddingTop = parseFloat(computed.paddingTop) || 0;
+		const borderTop = parseFloat(computed.borderTopWidth) || 0;
+
 		const caretX = rect.left + borderLeft + paddingLeft + caretOffsetLeft - scrollLeft;
 		const caretYTop = rect.top + borderTop + paddingTop + caretOffsetTop - scrollTop;
-		const caretLineHeight = markerRect.height || parseFloat(computed.lineHeight) || 16;
-		const caretCenterY = caretYTop + caretLineHeight / 2;
 
+		const lineHeight = parseFloat(computed.lineHeight) || markerRect.height || 20;
+		const caretCenterY = caretYTop + (lineHeight / 2);
+
+		const borderBottom = parseFloat(computed.borderBottomWidth) || 0;
 		const clampedX = Math.max(rect.left + borderLeft, Math.min(rect.right - borderRight, caretX));
 		const clampedY = Math.max(rect.top + borderTop, Math.min(rect.bottom - borderBottom, caretCenterY));
 

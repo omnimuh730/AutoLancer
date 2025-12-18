@@ -81,7 +81,6 @@ app.post('/qa', async (req, res) => {
 });
 
 app.post('/analyze', async (req, res) => {
-	//	console.log('Received /analyze request', req.body.userInput);
 	const payload = req.body.userInput || null;
 
 	if (!payload) {
@@ -90,7 +89,6 @@ app.post('/analyze', async (req, res) => {
 
 	const analyzeComponentData = JSON.parse(payload);
 	//	console.log(analyzeComponentData);
-	console.log(`Received ${analyzeComponentData.components.length} characters of analyzeComponentData`)
 
 	analyzeResultSet = [];
 
@@ -98,8 +96,7 @@ app.post('/analyze', async (req, res) => {
 		const analyzeResult = await analyzeData(component);
 
 		analyzeResultSet.push({
-			componentName: component.name,
-			result: analyzeResult
+			...analyzeResult
 		});
 	}
 
@@ -108,6 +105,6 @@ app.post('/analyze', async (req, res) => {
 	return res.json({ message: 'Analyze endpoint received data successfully', payload: analyzeResultSet });
 });
 
-app.listen(port, () => {
-	console.log(`Server is running on http://localhost:${port}`);
+app.listen(port, process.env.HOST || 'localhost', () => {
+	console.log(`Server running on http://${process.env.HOST || 'localhost'}:${port}`);
 });

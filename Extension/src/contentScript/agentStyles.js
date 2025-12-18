@@ -7,7 +7,6 @@ export const AUTOLANCER_HIGHLIGHT_CLASSES = {
 	submit: 'autolancer-highlight-submit',
 	input: 'autolancer-input-enhanced',
 	cursor: 'autolancer-input-cursor',
-	cursorBar: 'autolancer-cursor-bar',
 	cursorLogo: 'autolancer-cursor-logo',
 	cursorLogoWrapper: 'autolancer-cursor-logo-wrapper',
 	menu: 'autolancer-bot-menu',
@@ -16,201 +15,184 @@ export const AUTOLANCER_HIGHLIGHT_CLASSES = {
 };
 
 const styleContent = `
+/* 
+   ==========================================================================
+   1. Agent Highlight Classes (Restored Visual Flair - Optimized)
+   ==========================================================================
+   These classes apply "Glow" effects without heavy mask-image processing.
+*/
+
 .autolancer-highlight-base {
-	--autolancer-border-radius: 12px;
-	--autolancer-highlight-gradient: linear-gradient(120deg, #00c6ff, #4facfe, #00c6ff);
-	--autolancer-highlight-glow: rgba(79, 172, 254, 0.4);
-	--autolancer-glow-size: 2px;
-	box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 0 12px rgba(15, 23, 42, 0.25);
-	isolation: isolate;
-	border-radius: var(--autolancer-border-radius, 12px);
-	transition: box-shadow 0.3s ease, transform 0.3s ease;
-}
-
-.autolancer-highlight-base::before {
-	content: "";
-	position: absolute;
-	inset: 0;
-	padding: 2px;
-	border-radius: var(--autolancer-border-radius, 12px);
-	background: var(--autolancer-highlight-gradient, linear-gradient(120deg, #00c6ff, #4facfe, #00c6ff));
-	background-size: 100% 100%;
-	-webkit-mask:
-		linear-gradient(#000 0 0) content-box,
-		linear-gradient(#000 0 0);
-	-webkit-mask-composite: xor;
-	mask-composite: exclude;
-	pointer-events: none;
-	z-index: 2;
-}
-
-.autolancer-highlight-base::after {
-	content: "";
-	position: absolute;
-	inset: calc(-1 * var(--autolancer-glow-size, 2px));
-	border-radius: calc(var(--autolancer-border-radius, 12px) + var(--autolancer-glow-size, 2px));
-	background: var(--autolancer-highlight-gradient, linear-gradient(120deg, #00c6ff, #4facfe, #00c6ff));
-	background-size: 100% 100%;
-	filter: blur(4px);
-	opacity: 0.35;
-	pointer-events: none;
-	z-index: 1;
+    position: relative;
+    border-radius: 8px;
+    transition: box-shadow 0.3s ease, border-color 0.3s ease;
+    /* Cyan Glow */
+    box-shadow: 0 0 0 2px rgba(0, 198, 255, 0.6), 0 0 15px rgba(0, 198, 255, 0.25);
+    z-index: 10;
 }
 
 .autolancer-highlight-child {
-	--autolancer-highlight-gradient: linear-gradient(120deg, #ff416c, #ff4b2b, #ff416c);
-	--autolancer-highlight-glow: rgba(255, 65, 108, 0.55);
-	box-shadow: 0 0 0 1px rgba(255, 100, 130, 0.4), 0 0 14px rgba(255, 65, 108, 0.35);
+    border-radius: 6px;
+    /* Red/Pink Glow */
+    box-shadow: 0 0 0 2px rgba(255, 65, 108, 0.6), 0 0 12px rgba(255, 65, 108, 0.25);
 }
 
 .autolancer-highlight-parent {
-	--autolancer-highlight-gradient: linear-gradient(120deg, #0f9b0f34, #0b512691, #0f9b0f7e);
-	--autolancer-highlight-glow: rgba(15, 155, 15, 0.15);
-	box-shadow: 0 0 0 1px rgba(25, 100, 45, 0.35), 0 0 16px rgba(15, 155, 15, 0.35);
+    border-radius: 8px;
+    /* Green/Nature Glow */
+    box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.5), 0 0 15px rgba(34, 197, 94, 0.2);
 }
 
 .autolancer-highlight-submit {
-	--autolancer-highlight-gradient: linear-gradient(120deg, #00c6ff, #0072ff, #00c6ff);
-	--autolancer-highlight-glow: rgba(0, 150, 255, 0.55);
-	box-shadow: 0 0 0 1px rgba(0, 150, 255, 0.45), 0 0 16px rgba(0, 198, 255, 0.45);
+    border-radius: 6px;
+    /* Deep Blue/Action Glow */
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.7), 0 0 15px rgba(59, 130, 246, 0.35);
 }
 
-.autolancer-highlight-base::before,
-.autolancer-highlight-base::after {
-	mix-blend-mode: screen;
-}
-
-/* Input augmentation */
+/* 
+   ==========================================================================
+   2. Input Field Enhancement
+   ==========================================================================
+   Background remains transparent/native. 
+   Only Border and Box-Shadow are modified on focus.
+*/
 .autolancer-input-enhanced {
-	border-radius: 12px !important;
-	border: 1px solid rgba(255, 255, 255, 0.15) !important;
-	background-color: rgba(7, 14, 27, 0.85) !important;
-	color: #f5f5f5 !important;
-	box-shadow: inset 0 0 15px rgba(255, 255, 255, 0.08), 0 0 30px rgba(14, 33, 82, 0.4);
-	caret-color: transparent !important;
-	transition: box-shadow 0.3s ease, border-color 0.3s ease, background-color 0.3s ease;
+    transition: box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
 .autolancer-input-enhanced:focus {
-	border-color: rgba(0, 198, 255, 0.8) !important;
-	box-shadow: inset 0 0 25px rgba(0, 198, 255, 0.2), 0 0 30px rgba(0, 198, 255, 0.35);
-	background-color: rgba(10, 25, 54, 0.95) !important;
+    outline: none !important;
+    border-color: #00c6ff !important;
+    /* The "Smart" Glow effect when typing */
+    box-shadow: 0 0 0 1px #00c6ff, 0 0 12px rgba(0, 198, 255, 0.4) !important;
 }
 
+/* 
+   ==========================================================================
+   3. Floating Cursor (Logo)
+   ==========================================================================
+*/
 .autolancer-input-cursor {
-	position: fixed;
-	display: none;
-	align-items: center;
-	pointer-events: none;
-	z-index: 2147483643;
-	transform: translateY(-50%);
-}
-
-.autolancer-cursor-bar {
-	width: 2px;
-	height: 24px;
-	background: linear-gradient(180deg, rgba(0, 198, 255, 1), rgba(0, 114, 255, 1));
-	box-shadow: 0 0 12px rgba(0, 198, 255, 0.9);
+    position: fixed;
+    display: none;
+    align-items: center;
+    pointer-events: none; 
+    z-index: 2147483643;
+    transform: translateY(-50%);
+    margin-left: 2px; 
 }
 
 .autolancer-cursor-logo-wrapper {
-	position: relative;
-	margin-left: 6px;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	pointer-events: auto;
-	padding: 4px;
-	border-radius: 999px;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: auto; 
+    padding: 2px;
 }
 
+/* Hit area for menu hover stability */
 .autolancer-cursor-logo-wrapper::before {
-	content: "";
-	position: absolute;
-	top: -8px;
-	bottom: -14px;
-	left: -8px;
-	right: -8px;
-	border-radius: 999px;
-	pointer-events: auto;
+    content: "";
+    position: absolute;
+    top: -10px;
+    bottom: -15px;
+    left: -10px;
+    right: -10px;
 }
 
 .autolancer-cursor-logo {
-	width: 28px;
-	height: 28px;
-	border-radius: 50%;
-	padding: 4px;
-	background: rgba(4, 18, 32, 0.9);
-	border: 1px solid rgba(255, 255, 255, 0.12);
-	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
-	cursor: pointer;
-	transition: transform 0.2s ease, box-shadow 0.2s ease;
-	display: block;
-	object-fit: contain;
-	filter: invert(1);
+    width: 22px; 
+    height: 22px;
+    border-radius: 50%;
+    padding: 2px;
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    display: block;
+    object-fit: contain;
 }
 
 .autolancer-cursor-logo:hover {
-	transform: scale(1.08);
-	box-shadow: 0 6px 15px rgba(0, 0, 0, 0.5);
+    transform: scale(1.15);
+    box-shadow: 0 4px 10px rgba(0, 198, 255, 0.3);
+    border-color: #00c6ff;
 }
 
+/* 
+   ==========================================================================
+   4. Dropdown Menu
+   ==========================================================================
+*/
 .autolancer-bot-menu {
-	position: absolute;
-	top: 110%;
-	left: -20px;
-	width: 200px;
-	background: rgba(7, 15, 32, 0.96);
-	border: 1px solid rgba(255, 255, 255, 0.12);
-	border-radius: 12px;
-	padding: 8px;
-	box-shadow: 0 12px 24px rgba(0, 0, 0, 0.5);
-	opacity: 0;
-	visibility: hidden;
-	transform: translateY(10px);
-	transition: opacity 0.2s ease, transform 0.2s ease;
-	pointer-events: none;
+    position: absolute;
+    top: 120%;
+    left: 0;
+    min-width: 150px;
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 5px;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0,0,0,0.05);
+    
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(8px);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    pointer-events: none;
+    z-index: 2147483644;
 }
 
 .autolancer-cursor-logo-wrapper:hover .autolancer-bot-menu,
 .autolancer-bot-menu:hover {
-	opacity: 1;
-	visibility: visible;
-	transform: translateY(0);
-	pointer-events: auto;
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+    pointer-events: auto;
 }
 
 .autolancer-menu-item {
-	padding: 10px;
-	border-radius: 8px;
-	font-size: 13px;
-	color: #cbd5f5;
-	cursor: pointer;
-	transition: background 0.2s ease, color 0.2s ease;
-	display: flex;
-	align-items: center;
-	gap: 8px;
-}
-
-.autolancer-menu-item::before {
-	content: "⚡";
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    font-family: system-ui, -apple-system, sans-serif;
+    color: #374151;
+    cursor: pointer;
+    transition: all 0.15s ease;
 }
 
 .autolancer-menu-item:hover {
-	background: linear-gradient(120deg, rgba(0, 198, 255, 0.15), rgba(0, 114, 255, 0.2));
-	color: #fff;
+    background: linear-gradient(90deg, #eff6ff, #f3f4f6);
+    color: #0080ff;
 }
 
+.autolancer-menu-item::before {
+    content: "⚡";
+    font-size: 12px;
+}
+
+/* 
+   ==========================================================================
+   5. Technical (Mirror)
+   ==========================================================================
+*/
 .autolancer-input-mirror {
-	position: absolute;
-	visibility: hidden;
-	white-space: pre-wrap;
-	word-break: break-word;
-	overflow-wrap: break-word;
-	pointer-events: none;
-	z-index: -1;
-	top: 0;
-	left: -9999px;
+    position: absolute;
+    visibility: hidden;
+    white-space: pre-wrap;
+    word-break: break-word;
+    overflow-wrap: break-word;
+    pointer-events: none;
+    z-index: -1;
+    top: 0;
+    left: -9999px;
+    opacity: 0;
 }
 `;
 

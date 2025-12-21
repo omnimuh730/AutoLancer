@@ -1,3 +1,5 @@
+const { getFunctionCalling } = require("./getFunctionCalling");
+
 function getMeaningfulContext(parentElement, childElement) {
 	const parentText = parentElement.innerText || '';
 	const childSequence = (childElement || []).map(child => child.innerText || '').join('');
@@ -17,145 +19,97 @@ function getMeaningfulContext(parentElement, childElement) {
 	return meaningfulContext;
 };
 
-function checkIfFirstName(parentElement, childElement) {
-	const candidateTags = ['firstname', 'first name', 'first-name', 'first_name', 'givenname', 'given-name', 'given_name'];
-
+const staticFieldDetectionRule = [
+	{
+		'field': 'firstname',
+		'tags': ['firstname', 'first name', 'first-name', 'first_name', 'givenname', 'given-name', 'given_name']
+	},
+	{
+		'field': 'lastname',
+		'tags': ['lastname', 'last-name', 'last_name', 'last name', 'surname', 'familyname', 'family-name', 'family name']
+	},
+	{
+		'field': 'name',
+		'tags': ['name', 'fullname', 'full-name', 'full_name']
+	},
+	{
+		'field': 'email',
+		'tags': ['email', 'e-mail', 'email address']
+	},
+	{
+		'field': 'phonenumber',
+		'tags': ['phone', 'phonenumber', 'phone-number', 'phone_number', 'telephone', 'mobile', 'contact number']
+	},
+	{
+		'field': 'linkedin',
+		'tags': ['linkedin', 'linked in']
+	},
+	{
+		'field': 'github',
+		'tags': ['github', 'git hub']
+	},
+	{
+		'field': 'portfolio',
+		'tags': ['portfolio']
+	}
+]
+function checkIfPredefinedStaticField(parentElement, childElement) {
 	//We get meaningfulContext -> this is the description of the field in the html so we can get this by subset of parent.innertext-child.innertext.
 	const meaningfulContext = getMeaningfulContext(parentElement, childElement);
 
 	//If meaningfulContext contains any of the candidateTags, we return true
-	for (const tag of candidateTags) {
-		if (meaningfulContext.includes(tag)) {
-			return true;
+	for (const candidateField of staticFieldDetectionRule) {
+		for (const tag of candidateField.tags) {
+			if (meaningfulContext.includes(tag)) {
+				console.log(meaningfulContext, 'matches with tag:', tag);
+				return {
+					result: true,
+					field: candidateField.field
+				};
+			}
 		}
 	}
-	return false;
-}
-
-function checkIfLastName(parentElement, childElement) {
-	const candidateTags = ['lastname', 'last-name', 'last_name', 'last name', 'surname', 'familyname', 'family-name', 'family name'];
-
-	//We get meaningfulContext -> this is the description of the field in the html so we can get this by subset of parent.innertext-child.innertext.
-	const meaningfulContext = getMeaningfulContext(parentElement, childElement);
-
-	//If meaningfulContext contains any of the candidateTags, we return true
-	for (const tag of candidateTags) {
-		if (meaningfulContext.includes(tag)) {
-			return true;
-		}
-	}
-	return false;
-}
-
-function checkIfName(parentElement, childElement) {
-	const candidateTags = ['name', 'fullname', 'full-name', 'full_name'];
-	//We get meaningfulContext -> this is the description of the field in the html so we can get this by subset of parent.innertext-child.innertext.
-	const meaningfulContext = getMeaningfulContext(parentElement, childElement);
-
-	//If meaningfulContext contains any of the candidateTags, we return true
-	for (const tag of candidateTags) {
-		if (meaningfulContext.includes(tag)) {
-			return true;
-		}
-	}
-	return false;
-}
-
-function checkIfEmail(parentElement, childElement) {
-	const candidateTags = ['email', 'e-mail', 'email address'];
-	//We get meaningfulContext -> this is the description of the field in the html so we can get this by subset of parent.innertext-child.innertext.
-	const meaningfulContext = getMeaningfulContext(parentElement, childElement);
-
-	//If meaningfulContext contains any of the candidateTags, we return true
-	for (const tag of candidateTags) {
-		if (meaningfulContext.includes(tag)) {
-			return true;
-		}
-	}
-	return false;
-}
-function checkIfPhoneNumber(parentElement, childElement) {
-	const candidateTags = ['phone', 'telephone', 'phone number', 'mobile', 'contact number', 'cellphone', 'contact'];
-	//We get meaningfulContext -> this is the description of the field in the html so we can get this by subset of parent.innertext-child.innertext.
-	const meaningfulContext = getMeaningfulContext(parentElement, childElement);
-
-	//If meaningfulContext contains any of the candidateTags, we return true
-	for (const tag of candidateTags) {
-		if (meaningfulContext.includes(tag)) {
-			return true;
-		}
-	}
-	return false;
-}
-function checkIfLinkedin(parentElement, childElement) {
-	const candidateTags = ['linkedin'];
-	//We get meaningfulContext -> this is the description of the field in the html so we can get this by subset of parent.innertext-child.innertext.
-	const meaningfulContext = getMeaningfulContext(parentElement, childElement);
-
-	//If meaningfulContext contains any of the candidateTags, we return true
-	for (const tag of candidateTags) {
-		if (meaningfulContext.includes(tag)) {
-			return true;
-		}
-	}
-	return false;
-}
-
-function checkIfGithub(parentElement, childElement) {
-	const candidateTags = ['github'];
-	//We get meaningfulContext -> this is the description of the field in the html so we can get this by subset of parent.innertext-child.innertext.
-	const meaningfulContext = getMeaningfulContext(parentElement, childElement);
-
-	//If meaningfulContext contains any of the candidateTags, we return true
-	for (const tag of candidateTags) {
-		if (meaningfulContext.includes(tag)) {
-			return true;
-		}
-	}
-	return false;
-}
-function checkIfPortfolio(parentElement, childElement) {
-	const candidateTags = ['portfolio', 'website', 'web site', 'webpage', 'web page'];
-	//We get meaningfulContext -> this is the description of the field in the html so we can get this by subset of parent.innertext-child.innertext.
-	const meaningfulContext = getMeaningfulContext(parentElement, childElement);
-
-	//If meaningfulContext contains any of the candidateTags, we return true
-	for (const tag of candidateTags) {
-		if (meaningfulContext.includes(tag)) {
-			return true;
-		}
-	}
-	return false;
+	return {
+		result: false,
+		field: null
+	};
 }
 
 function checkStaticField(parentElement, childElement) {
-	/*
-	console.log('Question:');
-	console.log('-', getMeaningfulContext(parentElement, childElement) || '');
-	console.log('Options');
-	for (const child of (childElement || [])) {
-		console.log('-', child.innerText || '');
-	}
-		*/
-	if (checkIfFirstName(parentElement, childElement)) {
+	let schema_StaticFieldReasoning = {
+		'question': getMeaningfulContext(parentElement, childElement),
+		'options': (childElement || []).map(child => ({
+			'tag': child.tag || '',
+			'text': child.innerText || '',
+			'textlength': (child.innerText || '').length
+		})),
+		decision: 'none',
+		reasoning: 'none',
+		functionCalling: null,
+		isThisMandatory: true,
+		actionComponent: childElement
+	};
+	const predefinedFieldCheck = checkIfPredefinedStaticField(parentElement, childElement);
+	if (predefinedFieldCheck.result === true) {
+		schema_StaticFieldReasoning.decision = predefinedFieldCheck.field;
+		schema_StaticFieldReasoning.functionCalling = getFunctionCalling(schema_StaticFieldReasoning.decision);
+		console.log(schema_StaticFieldReasoning);
+
 		return {
 			findFlag: true,
 			fieldType: 'First Name'
 		};
 	}
-	if (checkIfLastName(parentElement, childElement)) {
-		return {
-			findFlag: true,
-			fieldType: 'Last Name'
-		};
+	/*
+	This is the exception cases
+	*/
+	console.log('----------');
+	console.log('Question:', getMeaningfulContext(parentElement, childElement));
+	console.log('Options:');
+	for (const child of (childElement || [])) {
+		console.log('Tag:', child.tag || '', 'Text:', child.innerText || '');
 	}
-	if (checkIfName(parentElement, childElement)) {
-		return {
-			findFlag: true,
-			fieldType: 'Full Name'
-		};
-	}
-
+	console.log('----------|--------------------|--------------------|--------------------');
 	return {
 		findFlag: false,
 		fieldType: null

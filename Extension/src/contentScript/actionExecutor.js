@@ -2,24 +2,45 @@ import { findElements, waitForElements } from './elementFinder';
 
 /**
  * Types a string into an input element character by character to simulate smooth typing.
+ * Uses a combination of value insertion and event dispatching to be compatible with modern frameworks.
  * @param {HTMLElement} element The input or textarea element.
  * @param {string} text The string to type.
  */
 export function typeSmoothly(element, text) {
 	return new Promise((resolve) => {
 		let i = 0;
+		// Clear existing value
 		element.value = '';
+
+		// Some frameworks need 'input' and 'change' events even for clearing
+		element.dispatchEvent(new Event('input', { bubbles: true }));
+
 		const interval = setInterval(() => {
 			if (i < text.length) {
-				element.value += text.charAt(i);
+				const char = text.charAt(i);
+
+				// Simulate keydown
+				element.dispatchEvent(new KeyboardEvent('keydown', { key: char, bubbles: true }));
+
+				// Update value - this is the part that often battles with the framework.
+				// We do not append; we set the absolute value based on what we've 'typed' so far.
+				// This prevents doubling if the framework also appends on keydown/input.
+				const currentExpectedValue = text.substring(0, i + 1);
+				element.value = currentExpectedValue;
+
+				// Simulate input event
 				element.dispatchEvent(new Event('input', { bubbles: true }));
+
+				// Simulate keyup
+				element.dispatchEvent(new KeyboardEvent('keyup', { key: char, bubbles: true }));
+
 				i++;
 			} else {
 				clearInterval(interval);
 				element.dispatchEvent(new Event('change', { bubbles: true }));
 				resolve();
 			}
-		}, 50);
+		}, 80); // Increased delay to allow framework state updates to settle
 	});
 }
 

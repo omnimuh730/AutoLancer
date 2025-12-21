@@ -95,10 +95,7 @@ function checkStaticField(parentElement, childElement) {
 		schema_StaticFieldReasoning.functionCalling = getFunctionCalling(schema_StaticFieldReasoning.decision);
 		console.log(schema_StaticFieldReasoning);
 
-		return {
-			findFlag: true,
-			fieldType: 'First Name'
-		};
+		return schema_StaticFieldReasoning;
 	}
 	/*
 	This is the exception cases
@@ -109,11 +106,10 @@ function checkStaticField(parentElement, childElement) {
 	for (const child of (childElement || [])) {
 		console.log('Tag:', child.tag || '', 'Text:', child.innerText || '');
 	}
+	console.log('Child Component:', childElement);
 	console.log('----------|--------------------|--------------------|--------------------');
-	return {
-		findFlag: false,
-		fieldType: null
-	}
+
+	return schema_StaticFieldReasoning;
 }
 
 module.exports = { checkStaticField, getMeaningfulContext };

@@ -31,18 +31,11 @@ function analyzeData(data) {
 		}
 	}
 
-	const CheckFieldResult = checkStaticField(innerHtml_Parent, innerHTML_Children);
-	if (CheckFieldResult.findFlag === true) {
-		return {
-			summary: 'StaticField is detected',
-			reasoning: CheckFieldResult.fieldType,
-			insights: data
-		}
-	}
+	const analyzed_StaticFieldReasoning = checkStaticField(innerHtml_Parent, innerHTML_Children);
 
 	return {
 		summary: 'This is a summary of the analyzed data.',
-		insights: []
+		insights: analyzed_StaticFieldReasoning
 	};
 }
 

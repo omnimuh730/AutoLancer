@@ -53,7 +53,10 @@ export const executeAction = (tag, property, pattern, order, action, actionValue
 
 export const handleAction = executeAction;
 
-export const highlightInteractables = () => {
-	chrome.runtime.sendMessage({ action: 'highlightInteractables' });
+export const highlightInteractables = (runId) => {
+	chrome.runtime.sendMessage({
+		action: 'highlightInteractables',
+		payload: { runId }
+	});
 };
 

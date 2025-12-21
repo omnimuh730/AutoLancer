@@ -342,6 +342,7 @@ export const messageHandler = (request, sender, sendResponse) => {
 						}
 
 						const componentData = groupAndHighlightComponents();
+						const runId = request?.payload?.runId || null;
 						enableAutolancerInputEffects();
 						console.log('Detected Component Structure:', componentData);
 
@@ -349,7 +350,7 @@ export const messageHandler = (request, sender, sendResponse) => {
 						try {
 							chrome.runtime.sendMessage({
 								action: 'interactablesResult',
-								payload: { components: componentData }
+								payload: { components: componentData, runId }
 							});
 						} catch (err) {
 							console.error('Failed to send interactablesResult message:', err);

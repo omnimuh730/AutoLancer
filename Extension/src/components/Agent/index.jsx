@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRuntime } from '../../api/runtimeContext';
 import useApi from '../../api/useApi';
 import { AgentUI } from './UI';
@@ -10,6 +10,8 @@ function AgentPage() {
 	const [analysisData, setAnalysisData] = useState(null);
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState(null);
+	const runIdRef = useRef(null);
+	const lastHandledRunIdRef = useRef(null);
 
 
 	const spiritApi = useApi(import.meta.env.VITE_SPIRIT_API_URL);
@@ -44,6 +46,12 @@ function AgentPage() {
 	useEffect(() => {
 		const listener = (message) => {
 			if (message?.action === 'interactablesResult') {
+				const incomingRunId = message?.payload?.runId || null;
+				// Normalize to current run when payload doesn't include the id (older content script)
+				const normalizedRunId = incomingRunId || runIdRef.current || '__legacy__';
+				if (lastHandledRunIdRef.current === normalizedRunId) return; // ignore duplicate
+				lastHandledRunIdRef.current = normalizedRunId;
+
 				setComponentsData(message.payload);
 				// Kick off backend analysis
 				analyzeComponents(message.payload);
@@ -55,9 +63,12 @@ function AgentPage() {
 
 	const handleAnalyze = () => {
 		try {
+			const runId = (crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`);
+			runIdRef.current = runId;
+			lastHandledRunIdRef.current = null;
 			setComponentsData(null);
 			setAnalysisData(null);
-			highlightInteractables();
+			highlightInteractables(runId);
 		} catch (e) {
 			console.error('Analyze failed:', e);
 		}

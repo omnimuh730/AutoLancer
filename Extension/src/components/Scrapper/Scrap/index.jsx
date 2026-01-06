@@ -352,19 +352,117 @@ const ScrapComponent = () => {
 	async function onSimplyhiredScrapping() {
 		setProgress(0);
 
+		//Job Title
 		handleHighlight("h2", "data-testid", "viewJobTitle");
-		id = `scrap_apply_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+		let id = `scrap_apply_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
 		const promise_JobTitle = new Promise((resolve) => pendingResolvers.current.set(id, resolve));
 		handleAction("h2", "data-testid", "viewJobTitle", 0, "fetch", null, "text", id);
 		const JobTitle = await promise_JobTitle;
 		await delay(250);
 		handleClear();
-		setProgress(10);
+		setProgress(15);
 
-		console.log(JobTitle);
+		//Company Name
+		handleHighlight("span", "data-testid", "viewJobCompanyName");
+		id = `scrap_apply_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+		const promise_CompanyName = new Promise((resolve) => pendingResolvers.current.set(id, resolve));
+		handleAction("span", "data-testid", "viewJobCompanyName", 0, "fetch", null, "text", id);
+		const CompanyName = await promise_CompanyName;
+		await delay(250);
+		handleClear();
+		setProgress(30);
+
+
+		//Company Location
+		handleHighlight("span", "data-testid", "viewJobCompanyLocation");
+		id = `scrap_apply_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+		const promise_CompanyLocation = new Promise((resolve) => pendingResolvers.current.set(id, resolve));
+		handleAction("span", "data-testid", "viewJobCompanyLocation", 0, "fetch", null, "text", id);
+		const CompanyLocation = await promise_CompanyLocation;
+		await delay(250);
+		handleClear();
+		setProgress(30);
+
+		//Posted Date
+		handleHighlight("div", "data-testid", "viewJobBodyJobDetailsContainer");
+		id = `scrap_apply_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+		const promise_JobPostedDate = new Promise((resolve) => pendingResolvers.current.set(id, resolve));
+		handleAction("div", "data-testid", "viewJobBodyJobDetailsContainer", 0, "fetch", null, "text", id);
+		const JobPostedDate = await promise_JobPostedDate;
+		await delay(250);
+		handleClear();
+		setProgress(45);
+
+		//Qualification
+		handleHighlight("div", "data-testid", "viewJobQualificationsContainer");
+		id = `scrap_apply_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+		const promise_Qualification = new Promise((resolve) => pendingResolvers.current.set(id, resolve));
+		handleAction("div", "data-testid", "viewJobQualificationsContainer", 0, "fetch", null, "content", id);
+		const QualificationsComponent = await promise_Qualification;
+		const Qualifications = QualificationsComponent?.success
+			? Array.from(
+				new DOMParser()
+					.parseFromString(QualificationsComponent.data, "text/html")
+					.querySelectorAll(
+						'[data-testid="viewJobQualificationItem"]'
+					)
+			).map(span => span.innerText.trim())
+			: [];
+		await delay(250);
+		handleClear();
+		setProgress(60);
+
+		//JD
+		handleHighlight("div", "data-testid", "viewJobBodyJobFullDescriptionContent");
+		id = `scrap_apply_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+		const promise_JobDescription = new Promise((resolve) => pendingResolvers.current.set(id, resolve));
+		handleAction("div", "data-testid", "viewJobBodyJobFullDescriptionContent", 0, "fetch", null, "text", id);
+		const JobDescription = await promise_JobDescription;
+		await delay(250);
+		handleClear();
+		setProgress(75);
+
+		handleHighlight("a", "data-testid", "viewJobHeaderFooterApplyButton");
+		id = `scrap_apply_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+		const promise_applyLink = new Promise((resolve) => pendingResolvers.current.set(id, resolve));
+		handleAction("a", "data-testid", "viewJobHeaderFooterApplyButton", 0, "fetch", null, "content", id);
+		const LinkComponent = await promise_applyLink;
+
+		const ApplyLink = LinkComponent?.success
+			? (() => {
+				const doc = new DOMParser().parseFromString(
+					LinkComponent.data,
+					"text/html"
+				);
+				const href = doc.querySelector("a")?.getAttribute("data-mdref");
+				return href ? new URL(href, "https://www.simplyhired.com").toString() : null;
+			})()
+			: null;
+		setProgress(90);
+		await delay(100);
+		handleClear();
+
+		const resultData = {
+			applyLink: ApplyLink || "",
+			id: Date.now(),
+			postedAgo: JobPostedDate || "",
+			tags: [],
+			company: {
+				name: CompanyName.data || "",
+				tags: [],
+				logo: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQGRo4_tzLdMlx9Bzp9ZyFGo0VdeHbJt_rfYQ&s",
+			},
+			title: JobTitle.data || "",
+			details: {},
+			applicants: { count: 0, text: "" },
+			description: JobDescription.data,
+			skills: Qualifications || [],
+		};
+
+		console.log(resultData);
 
 		// END PART
-
+		setProgress(100);
 		handleClear();
 		await delay(250);
 	}

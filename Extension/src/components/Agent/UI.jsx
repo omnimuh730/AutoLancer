@@ -4,10 +4,12 @@ import ResponseTreeView from './reference/ResponseTreeView.jsx';
 export function AgentUI({
 	onAnalyze,
 	onClear,
+	onExecute,
 	loading,
 	error,
 	componentsData,
-	analysisData
+	analysisData,
+	hasExecutableActions
 }) {
 	return (
 		<Box sx={{ p: 2, maxWidth: 1000, margin: 'auto' }}>
@@ -20,6 +22,9 @@ export function AgentUI({
 						</Button>
 						<Button variant="outlined" color="secondary" onClick={onClear} fullWidth>
 							Clear Highlights
+						</Button>
+						<Button variant="contained" color="success" onClick={onExecute} fullWidth disabled={!hasExecutableActions}>
+							Execute Actions
 						</Button>
 					</Box>
 					{loading && <Typography variant="body2">Analyzing with AI...</Typography>}

@@ -92,7 +92,17 @@ function checkStaticField(parentElement, childElement) {
 	const predefinedFieldCheck = checkIfPredefinedStaticField(parentElement, childElement);
 	if (predefinedFieldCheck.result === true) {
 		schema_StaticFieldReasoning.decision = predefinedFieldCheck.field;
-		schema_StaticFieldReasoning.functionCalling = getFunctionCalling(schema_StaticFieldReasoning.decision);
+		const fieldValue = getFunctionCalling(schema_StaticFieldReasoning.decision);
+		schema_StaticFieldReasoning.functionCalling = fieldValue;
+		if (fieldValue) {
+			schema_StaticFieldReasoning.action_suggestion = {
+				command: "TYPING",
+				payload: {
+					value: fieldValue,
+					timeout_ms: 100 // Default timeout
+				}
+			};
+		}
 		console.log(schema_StaticFieldReasoning);
 
 		return schema_StaticFieldReasoning;

@@ -5,10 +5,15 @@ import {
 	Divider,
 	CircularProgress,
 	Typography,
+	MenuItem,
+	InputLabel,
+	FormControl,
+	Select,
 	Paper,
 	Stack,
 	Box,
 } from '@mui/material';
+
 import { PlayArrow, Stop } from '@mui/icons-material';
 import PropTypes from 'prop-types'
 import { useRuntime } from '../../../api/runtimeContext';
@@ -64,6 +69,12 @@ const ScrapComponent = () => {
 	const pendingResolvers = useRef(new Map());
 
 	const [scrappedCount, setScrappedCount] = useState(0);
+
+	const [jobSource, setJobSource] = useState('Jobright');
+
+	const handleJobSourceChange = (event) => {
+		setJobSource(event.target.value);
+	};
 
 	useEffect(() => {
 		const listener = (message) => {
@@ -191,10 +202,10 @@ const ScrapComponent = () => {
 		await delay(100);
 		handleClear();
 
-		handleHighlight("p", "class", "?index_company-summary__?");
+		handleHighlight("div", "class", "?index_company-summary__?");
 		id = `scrap_summary_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
 		const promise_company_summary = new Promise((resolve) => pendingResolvers.current.set(id, resolve));
-		handleAction("p", "class", "?index_company-summary__?", 0, "fetch", null, "text", id);
+		handleAction("div", "class", "?index_company-summary__?", 0, "fetch", null, "text", id);
 		const CompanySummary = await promise_company_summary;
 		setProgress(40);
 		await delay(100);
@@ -338,15 +349,43 @@ const ScrapComponent = () => {
 		await delay(250);
 	}
 
+	async function onSimplyhiredScrapping() {
+		setProgress(0);
+
+		handleHighlight("h2", "data-testid", "viewJobTitle");
+		id = `scrap_apply_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+		const promise_JobTitle = new Promise((resolve) => pendingResolvers.current.set(id, resolve));
+		handleAction("h2", "data-testid", "viewJobTitle", 0, "fetch", null, "text", id);
+		const JobTitle = await promise_JobTitle;
+		await delay(250);
+		handleClear();
+		setProgress(10);
+
+		console.log(JobTitle);
+
+		// END PART
+
+		handleClear();
+		await delay(250);
+	}
+
 	useEffect(() => {
 		let active = true; // cancellation flag
 
 		const run = async () => {
 			while (active && scrapFlag) {
-				try {
-					await onClickListItem(); // wait until it fully finishes
-				} catch (err) {
-					console.error("Error in onClickListItem:", err);
+				if (jobSource === 'Jobright') {
+					try {
+						await onClickListItem(); // wait until it fully finishes
+					} catch (err) {
+						console.error("Error in onClickListItem:", err);
+					}
+				} else if (jobSource === 'Simplyhired') {
+					try {
+						await onSimplyhiredScrapping();
+					} catch (err) {
+						console.error('Erro on simplifing scrapping', err);
+					}
 				}
 			}
 		};
@@ -375,6 +414,22 @@ const ScrapComponent = () => {
 				<Typography variant="h5" component="h2" gutterBottom>
 					Scraping Controls
 				</Typography>
+				<Divider />
+
+				<FormControl fullWidth>
+					<InputLabel id="demo-simple-select-label">Job Source</InputLabel>
+					<Select
+						labelId="demo-simple-select-label"
+						id="demo-simple-select"
+						value={jobSource}
+						label="Job Source"
+						onChange={handleJobSourceChange}
+					>
+						<MenuItem value='Jobright'>Jobright</MenuItem>
+						<MenuItem value='Simplyhired'>Simplyhired</MenuItem>
+					</Select>
+				</FormControl>
+
 				<Divider />
 
 				{/* Section 2: Progress and Stats */}

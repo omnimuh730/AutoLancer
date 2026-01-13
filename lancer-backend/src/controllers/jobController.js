@@ -9,8 +9,9 @@ import {
 } from "../db/mongo.js";
 import { calculateJobScores } from "../../../configs/jobScore.js";
 import { JobSource } from '../../../configs/pub.js';
-import { isJobBlocked, buildMongoQueryForRule } from '../utils/ruleMatcher.js';
+import { isJobBlocked, buildMongoQueryForRule, isMatchNoneQuery } from '../utils/ruleMatcher.js';
 import { computeSkillScoreValue, getMissingSkills, refreshSkillScoresForSkills } from '../services/skillScoreService.js';
+import { buildMongoCaseInsensitiveRegexFilter, buildRegexAlternation, buildSafeRegExp } from '../utils/safeRegex.js';
 
 const DUPLICATE_LOOKBACK_DAYS = 30;
 const LOOKBACK_WINDOW_MS = DUPLICATE_LOOKBACK_DAYS * 24 * 60 * 60 * 1000;
@@ -156,7 +157,7 @@ export async function getJobsForRule(req, res) {
 		const query = buildMongoQueryForRule(ruleSet);
 
 		// A query that finds nothing
-		if (query._id === null) {
+		if (isMatchNoneQuery(query)) {
 			return res.json({
 				success: true,
 				data: [],
@@ -191,7 +192,7 @@ export async function removeJobsForRule(req, res) {
 		}
 
 		const query = buildMongoQueryForRule(ruleSet);
-		if (query._id === null) {
+		if (isMatchNoneQuery(query)) {
 			return res.status(400).json({
 				success: false,
 				error: 'Cannot remove jobs for this rule due to unsupported logic (e.g., mixed operators or XOR).',
@@ -222,24 +223,28 @@ export async function getJobs(req, res) {
 		}
 		const query = { $and: [] };
 
-		if (q) {
-			query.$and.push({ title: { $regex: q, $options: 'i' } });
-		}
+		const titleFilter = buildMongoCaseInsensitiveRegexFilter(q);
+		if (titleFilter) query.$and.push({ title: titleFilter });
 
 		for (const key in filters) {
 			if (Object.hasOwnProperty.call(filters, key)) {
+				if (key.startsWith('$')) continue;
 				const value = filters[key];
 				if (!value) continue;
 
 				if (key === 'company.tags' && typeof value === 'string') {
 					const tags = value.split(',').map(s => s.trim()).filter(Boolean);
 					if (tags.length) {
-						query.$and.push({ [key]: { $all: tags.map(tag => new RegExp(tag, 'i')) } });
+						const tagRegexes = tags.map(tag => buildSafeRegExp(tag)).filter(Boolean);
+						if (tagRegexes.length) {
+							query.$and.push({ [key]: { $all: tagRegexes } });
+						}
 					}
 				} else if (key === 'details.remote' || key === 'details.time') {
 					query.$and.push({ [key]: value });
 				} else if (typeof value === 'string') {
-					query.$and.push({ [key]: { $regex: value, $options: 'i' } });
+					const filter = buildMongoCaseInsensitiveRegexFilter(value);
+					if (filter) query.$and.push({ [key]: filter });
 				}
 			}
 		}
@@ -257,10 +262,12 @@ export async function getJobs(req, res) {
 
 		const knownSources = JobSource;
 
-		// Build regexes
-		let selectedKnown = jobSourceItem.filter(src => src !== 'Other');
-		let jobSourceQuery = "^https://[^/]*(" + selectedKnown.join('|') + ")\.";
-		let knownSourcesRegex = "^https://[^/]*(" + knownSources.join('|') + ")\.";
+		// Build regexes (treat user-provided strings as literals, not regex patterns)
+		const selectedKnown = jobSourceItem.filter(src => src !== 'Other');
+		const selectedKnownPattern = buildRegexAlternation(selectedKnown);
+		const knownSourcesPattern = buildRegexAlternation(knownSources);
+		const jobSourceQuery = `^https://[^/]*(${selectedKnownPattern})\\.`;
+		const knownSourcesRegex = `^https://[^/]*(${knownSourcesPattern})\\.`;
 
 		//{"applyLink": {"$regex": "https://.*(workday).*"}}
 

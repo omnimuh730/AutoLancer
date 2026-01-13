@@ -20,6 +20,40 @@ const MAX_TRACKED_JOBS = 500;
 const pendingStoreTasks = [];
 let storeReady = false;
 
+async function ensureContentScriptInjected(tabId) {
+	try {
+		const [{ result }] = await chrome.scripting.executeScript({
+			target: { tabId, frameIds: [0] },
+			func: () => {
+				const ATTR = 'data-autolancer-content-script-injected';
+				const root = document.documentElement || document.head || document.body;
+				if (!root) return false;
+				if (root.hasAttribute(ATTR) || window.contentScriptInjected) {
+					return false;
+				}
+				try {
+					root.setAttribute(ATTR, 'true');
+				} catch (e) {
+					// Best effort only; we still proceed with injection.
+				}
+				window.contentScriptInjected = true;
+				return true;
+			},
+		});
+
+		if (result) {
+			await chrome.scripting.executeScript({
+				target: { tabId, frameIds: [0] },
+				files: ["contentScript.js"],
+			});
+		}
+		return true;
+	} catch (e) {
+		console.error('Failed to ensure content script injection', e);
+		return false;
+	}
+}
+
 const createDefaultStore = () => ({
 	stats: {
 		total: 0,
@@ -347,20 +381,22 @@ chrome.runtime.onMessage.addListener((message) => {
 			if (!tabs?.length || !tabs[0]?.id) return;
 			const targetTabId = tabs[0].id;
 			chrome.tabs.sendMessage(targetTabId, message, { frameId: 0 }, () => {
-				if (chrome.runtime.lastError) {
-					// Most pages get `contentScript.js` from `content_scripts`, but during navigations
-					// the receiver may briefly not exist; inject once and resend to avoid stale retries.
-					chrome.scripting.executeScript({
-						target: { tabId: targetTabId },
-						files: ["contentScript.js"],
-					}, () => {
+				if (!chrome.runtime.lastError) return;
+				const lastErrorMessage = chrome.runtime.lastError?.message || '';
+				// Only attempt the guarded injection if the receiver is missing (navigation/new page).
+				if (!/Receiving end does not exist|Could not establish connection/i.test(lastErrorMessage)) return;
+
+				ensureContentScriptInjected(targetTabId)
+					.then(() => {
 						try {
 							chrome.tabs.sendMessage(targetTabId, message, { frameId: 0 });
 						} catch (e) {
-							console.error('Failed to send message after injecting contentScript', e);
+							console.error('Failed to send message after ensuring contentScript', e);
 						}
+					})
+					.catch((err) => {
+						console.error('Failed to ensure contentScript before resend', err);
 					});
-				}
 			});
 		});
 		return;

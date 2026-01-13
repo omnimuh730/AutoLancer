@@ -1,4 +1,47 @@
 import { rulesCollection } from '../db/mongo.js';
+import { buildMongoCaseInsensitiveRegexFilter } from './safeRegex.js';
+
+const MATCH_NONE_QUERY = Object.freeze({ _id: { $exists: false } });
+
+export function isMatchNoneQuery(query) {
+	return Boolean(query && typeof query === 'object' && query._id && query._id.$exists === false);
+}
+
+let cachedRuleSets = null;
+let cachedRuleSetsAt = 0;
+let cachedRuleSetsPromise = null;
+const RULES_CACHE_TTL_MS = 5_000;
+
+export function invalidateRulesCache() {
+	cachedRuleSets = null;
+	cachedRuleSetsAt = 0;
+	cachedRuleSetsPromise = null;
+}
+
+async function getRuleSetsCached() {
+	const now = Date.now();
+	if (cachedRuleSets && now - cachedRuleSetsAt < RULES_CACHE_TTL_MS) {
+		return cachedRuleSets;
+	}
+
+	if (cachedRuleSetsPromise) {
+		return cachedRuleSetsPromise;
+	}
+
+	if (!rulesCollection) {
+		return [];
+	}
+
+	cachedRuleSetsPromise = rulesCollection.find({}).toArray().then((rules) => {
+		cachedRuleSets = rules;
+		cachedRuleSetsAt = Date.now();
+		return cachedRuleSets;
+	}).finally(() => {
+		cachedRuleSetsPromise = null;
+	});
+
+	return cachedRuleSetsPromise;
+}
 
 function evaluateRule(job, rule) {
 	const { field, operator, value } = rule;
@@ -68,7 +111,7 @@ function evaluateRuleSet(job, ruleSet) {
 
 export async function isJobBlocked(job) {
 	try {
-		const allRules = await rulesCollection.find({}).toArray();
+		const allRules = await getRuleSetsCached();
 		if (allRules.length === 0) {
 			return null; // No rules to check against
 		}
@@ -106,13 +149,30 @@ export function buildMongoQueryForRule(ruleSet) {
         
         switch (operator) {
             case 'equals':
-                return { [fieldName]: { $regex: `^${value}$`, $options: 'i' } };
+                {
+                    const filter = buildMongoCaseInsensitiveRegexFilter(value, { exact: true });
+                    return filter ? { [fieldName]: filter } : MATCH_NONE_QUERY;
+                }
             case 'contains':
-                return { [fieldName]: { $regex: value, $options: 'i' } };
+                {
+                    const filter = buildMongoCaseInsensitiveRegexFilter(value);
+                    return filter ? { [fieldName]: filter } : MATCH_NONE_QUERY;
+                }
             case 'pattern':
+                if (typeof value !== 'string' || value.length > 500) {
+                    console.warn(`Invalid regex pattern value for rule: ${ruleSet.name}`);
+                    return MATCH_NONE_QUERY;
+                }
+                try {
+                    // Validate the regex before sending it to MongoDB
+                    new RegExp(value, 'i');
+                } catch (error) {
+                    console.warn(`Invalid regex pattern in rule: ${value}`, error);
+                    return MATCH_NONE_QUERY;
+                }
                 return { [fieldName]: { $regex: value, $options: 'i' } };
             default:
-                return {};
+                return MATCH_NONE_QUERY;
         }
     };
 
@@ -135,19 +195,19 @@ export function buildMongoQueryForRule(ruleSet) {
 
     if (allOperatorsAreTheSame && mongoOperatorMap[firstOperator]) {
         const operator = mongoOperatorMap[firstOperator];
-        if (operator === '$xor') {
-             // XOR is not supported like this. We can't build a simple query.
-             // We'd have to fetch and filter in memory, which defeats the purpose of a DB query.
-             // For now, we will not support search for XOR rules.
-             return { _id: null }; // Return a query that finds nothing
-        }
-        const conditions = rules.map(createCondition);
-        return { [operator]: conditions };
-    }
+         if (operator === '$xor') {
+              // XOR is not supported like this. We can't build a simple query.
+              // We'd have to fetch and filter in memory, which defeats the purpose of a DB query.
+              // For now, we will not support search for XOR rules.
+              return MATCH_NONE_QUERY; // Return a query that finds nothing
+         }
+         const conditions = rules.map(createCondition);
+         return { [operator]: conditions };
+     }
 
-    // If operators are mixed, we cannot reliably build a mongo query.
-    // For now, we will return a query that finds nothing if the rule is too complex.
-    // A proper implementation would require a parser to build an Abstract Syntax Tree.
-    console.warn(`Cannot build mongo query for rule set with mixed logical operators: ${ruleSet.name}`);
-    return { _id: null }; // Return a query that finds nothing
+     // If operators are mixed, we cannot reliably build a mongo query.
+     // For now, we will return a query that finds nothing if the rule is too complex.
+     // A proper implementation would require a parser to build an Abstract Syntax Tree.
+     console.warn(`Cannot build mongo query for rule set with mixed logical operators: ${ruleSet.name}`);
+     return MATCH_NONE_QUERY; // Return a query that finds nothing
 }

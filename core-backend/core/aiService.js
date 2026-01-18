@@ -8,7 +8,7 @@ const openai = new OpenAI({
 });
 
 const getFullUserProfile = () => {
-	return ```
+	return `
 **Your Details:**
     - **Name:** Terry Huang
 	- **Location:** Gladewater, TX
@@ -26,7 +26,7 @@ const getFullUserProfile = () => {
 		- Race: East Asian or Asian
 		- Age: 34 yrs
 		- Nationality: American
-```
+`
 }
 
 // Helper to sum usage objects
@@ -85,7 +85,7 @@ async function generateDynamicAnswer(questionContext) {
 
 	You are my interview supporter. I will act as the interviewer (manager), and you will act as the interviewee.
 
-	${getFullUserProfile()}
+	${userProfile}
 	---
     `;
 
@@ -194,7 +194,7 @@ async function generateSelectionAnswer(questionContext, optionsList) {
 
 	You are my interview supporter. I will act as the interviewer (manager), and you will act as the interviewee.
 
-	${getFullUserProfile()}
+	${userProfile}
 
     Task:
     You will be given a form question and a list of possible options.

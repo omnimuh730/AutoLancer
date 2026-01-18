@@ -40,6 +40,8 @@ function AgentPage() {
 			const result = await spiritPost('/analyze', body);
 			setAnalysisData(result || null);
 
+			console.log('Analyze result:', result);
+
 			if (result?.payload) {
 				const actions = [];
 				for (const item of result.payload) {

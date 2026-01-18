@@ -71,11 +71,35 @@ async function generateDynamicAnswer(questionContext) {
 
 		const answer = completion.choices[0].message.content.trim();
 		console.log(`[AI Generation] Q: "${questionContext}" -> A: "${answer}"`);
-		return answer;
+
+		return {
+			answer: completion.choices[0].message.content.trim(),
+			usage: completion.usage
+			/*
+			Completion usage {
+				prompt_tokens: 515,
+				completion_tokens: 1940,
+				total_tokens: 2455,
+				prompt_tokens_details: { 
+					cached_tokens: 0, audio_tokens: 0 
+				},
+				completion_tokens_details: {
+					reasoning_tokens: 1856,
+					audio_tokens: 0,
+					accepted_prediction_tokens: 0,
+					rejected_prediction_tokens: 0
+				}
+			}
+			*/
+		};
 
 	} catch (error) {
 		console.error("AI Generation Error:", error);
-		return "Error generating response.";
+
+		return {
+			answer: "Error generating response.",
+			usage: { prompt_tokens: 0, completion_tokens: 0 }
+		};
 	}
 }
 

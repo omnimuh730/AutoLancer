@@ -91,17 +91,43 @@ app.post('/analyze', async (req, res) => {
 	//	console.log(analyzeComponentData);
 
 	analyzeResultSet = [];
+	let totalInputTokens = 0;
+	let totalOutputTokens = 0;
 	console.log('Analyze endpoint processing started');
 
 	for (const component of analyzeComponentData.components) {
 		const analyzeResult = await analyzeData(component);
+
+		// Accumulate Tokens
+		if (analyzeResult.aiUsage) {
+			totalInputTokens += analyzeResult.aiUsage.prompt_tokens || 0;
+			totalOutputTokens += analyzeResult.aiUsage.completion_tokens || 0;
+		}
 
 		analyzeResultSet.push({
 			...analyzeResult
 		});
 	}
 
+	// Pricing Calculation (Per 1M tokens)
+	const PRICE_PER_1M_INPUT = 0.05;
+	const PRICE_PER_1M_OUTPUT = 0.40;
+
+	const inputCost = (totalInputTokens / 1000000) * PRICE_PER_1M_INPUT;
+	const outputCost = (totalOutputTokens / 1000000) * PRICE_PER_1M_OUTPUT;
+	const totalCost = inputCost + outputCost;
+
 	console.log('Analyze endpoint processing complete');
+
+	// Log the cost analysis
+	if (totalInputTokens > 0 || totalOutputTokens > 0) {
+		console.log(`--------------------------------------------------`);
+		console.log(`AI Cost Analysis:`);
+		console.log(`Input Tokens:  ${totalInputTokens}`);
+		console.log(`Output Tokens: ${totalOutputTokens}`);
+		console.log(`Total Price:   $${totalCost.toFixed(8)}`); // High precision for micro-costs
+		console.log(`--------------------------------------------------`);
+	}
 
 	return res.json({ message: 'Analyze endpoint received data successfully', payload: analyzeResultSet });
 });

@@ -6,6 +6,7 @@ export function AgentUI({
 	onClear,
 	onExecute,
 	loading,
+	executing,
 	error,
 	componentsData,
 	analysisData,
@@ -23,11 +24,12 @@ export function AgentUI({
 						<Button variant="outlined" color="secondary" onClick={onClear} fullWidth>
 							Clear Highlights
 						</Button>
-						<Button variant="contained" color="success" onClick={onExecute} fullWidth disabled={!hasExecutableActions}>
-							Execute Actions
+						<Button variant="contained" color="success" onClick={onExecute} fullWidth disabled={!hasExecutableActions || loading || executing}>
+							{executing ? 'Executing...' : 'Execute Actions'}
 						</Button>
 					</Box>
 					{loading && <Typography variant="body2">Analyzing with AI...</Typography>}
+					{executing && <Typography variant="body2">Executing AI suggestions...</Typography>}
 					{error && (
 						<Typography variant="body2" color="error">
 							{String(error)}

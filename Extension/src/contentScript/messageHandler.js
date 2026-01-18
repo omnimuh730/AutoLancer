@@ -301,6 +301,44 @@ export const messageHandler = (request, sender, sendResponse) => {
 					break;
 				}
 
+				case 'executeActionsSequence': {
+					const runId = request?.payload?.runId || null;
+					const actions = Array.isArray(request?.payload?.actions) ? request.payload.actions : [];
+					const results = [];
+
+					const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+					try {
+						for (let i = 0; i < actions.length; i++) {
+							const actionPayload = actions[i];
+							const result = await performActionOnElement(actionPayload);
+							results.push({ index: i, ...result });
+							// Small pause between actions to allow DOM/framework updates to settle.
+							await wait(75);
+						}
+
+						try {
+							chrome.runtime.sendMessage({
+								action: 'executeActionsSequenceResult',
+								payload: { runId, success: true, results }
+							});
+						} catch (err) {
+							console.error('Failed to send executeActionsSequenceResult message:', err);
+						}
+					} catch (err) {
+						console.error('executeActionsSequence error:', err);
+						try {
+							chrome.runtime.sendMessage({
+								action: 'executeActionsSequenceResult',
+								payload: { runId, success: false, error: String(err && err.message || err), results }
+							});
+						} catch (e) {
+							console.error('Failed to send executeActionsSequenceResult error message:', e);
+						}
+					}
+					break;
+				}
+
 				case 'highlightInteractables': {
 					try {
 						clearHighlights();

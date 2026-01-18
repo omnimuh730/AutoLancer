@@ -11,7 +11,8 @@ const actionsToForward = [
 	"executePlan",
 	"collectDomHints",
 	"clearHighlight",
-	"executeAction"
+	"executeAction",
+	"executeActionsSequence"
 ];
 
 const JOB_BID_STORAGE_KEY = 'jobBidStore';
@@ -33,7 +34,7 @@ async function ensureContentScriptInjected(tabId) {
 				}
 				try {
 					root.setAttribute(ATTR, 'true');
-				} catch (e) {
+				} catch {
 					// Best effort only; we still proceed with injection.
 				}
 				window.contentScriptInjected = true;

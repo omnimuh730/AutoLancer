@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRuntime } from '../../api/runtimeContext';
 import useApi from '../../api/useApi';
 import { AgentUI } from './UI';
-import { highlightInteractables, clearHighlights, handleAction } from '../../contentScript/interactionBridge';
+import { highlightInteractables, clearHighlights, executeActionsSequence } from '../../contentScript/interactionBridge';
 import { useAgentState } from './hooks';
 
 function AgentPage() {
@@ -10,6 +10,7 @@ function AgentPage() {
 	const [componentsData, setComponentsData] = useState(null);
 	const [analysisData, setAnalysisData] = useState(null);
 	const [loading, setLoading] = useState(false);
+	const [executing, setExecuting] = useState(false);
 	const [error, setError] = useState(null);
 	const runIdRef = useRef(null);
 	const lastHandledRunIdRef = useRef(null);
@@ -18,6 +19,56 @@ function AgentPage() {
 
 	const spiritApi = useApi(import.meta.env.VITE_SPIRIT_API_URL);
 	const { post: spiritPost, baseUrl: spiritBaseUrl } = spiritApi;
+
+	const deriveSelectorFromSerializedElement = useCallback((serializedElement) => {
+		const tag = serializedElement?.tag;
+		const props = serializedElement?.properties || {};
+		if (!tag) return null;
+
+		if (props.id) return { componentType: tag, propertyName: 'id', pattern: props.id };
+		if (props.name) return { componentType: tag, propertyName: 'name', pattern: props.name };
+
+		if (tag === 'input' && props.value) {
+			const inputType = String(props.type || '').toLowerCase();
+			if (['radio', 'checkbox', 'button', 'submit'].includes(inputType)) {
+				return { componentType: tag, propertyName: 'value', pattern: props.value };
+			}
+		}
+
+		if (props['data-testid']) return { componentType: tag, propertyName: 'data-testid', pattern: props['data-testid'] };
+		if (props['data-cy']) return { componentType: tag, propertyName: 'data-cy', pattern: props['data-cy'] };
+		if (props['data-automation-id']) return { componentType: tag, propertyName: 'data-automation-id', pattern: props['data-automation-id'] };
+		if (props['aria-label']) return { componentType: tag, propertyName: 'aria-label', pattern: props['aria-label'] };
+		if (props.placeholder) return { componentType: tag, propertyName: 'placeholder', pattern: props.placeholder };
+
+		const classAttr = props.class || '';
+		const firstClass = String(classAttr).split(/\s+/).filter(Boolean)[0];
+		if (firstClass) return { componentType: tag, propertyName: 'class', pattern: `?${firstClass}?` };
+
+		return null;
+	}, []);
+
+	const pickChildFromGroup = useCallback((group, command, childIndex) => {
+		const children = Array.isArray(group?.Children) ? group.Children : [];
+		const idx = Number.isFinite(childIndex) ? childIndex : parseInt(childIndex, 10);
+
+		if (Number.isFinite(idx) && idx >= 0 && idx < children.length) return children[idx];
+
+		if (command === 'TYPING') {
+			return children.find((c) => c?.tag === 'input' || c?.tag === 'textarea') || null;
+		}
+		if (command === 'SELECT_OPTION' || command === 'DROPDOWN_SELECT') {
+			return children.find((c) => c?.tag === 'select') || null;
+		}
+		if (command === 'CLICK') {
+			return children.find((c) => c?.tag === 'button' || c?.tag === 'a' || (c?.tag === 'input' && (c?.properties?.type === 'button' || c?.properties?.type === 'submit'))) || null;
+		}
+		if (command === 'UPLOAD' || command === 'FILEUPLOAD') {
+			return children.find((c) => c?.tag === 'input' && c?.properties?.type === 'file') || null;
+		}
+
+		return null;
+	}, []);
 
 	const analyzeComponents = useCallback(async (payload) => {
 		if (!payload) return;
@@ -30,6 +81,7 @@ function AgentPage() {
 		setLoading(true);
 		setError(null);
 		setExecutableActions([]);
+		setExecuting(false);
 
 		console.log('Sending analyze request with payload:', payload);
 
@@ -42,39 +94,37 @@ function AgentPage() {
 
 			console.log('Analyze result:', result);
 
-			if (result?.payload) {
+			if (Array.isArray(result?.payload) && Array.isArray(payload?.components)) {
 				const actions = [];
-				for (const item of result.payload) {
-					if (item.insights?.actionComponent && item.insights?.action_suggestion?.command === 'TYPING' && item.insights?.action_suggestion?.payload?.value) {
-						const component = item.insights.actionComponent[0];
-						let property = '';
-						let pattern = '';
-						if (component.id) {
-							property = 'id';
-							pattern = component.id;
-						} else if (component.name) {
-							property = 'name';
-							pattern = component.name;
-						} else if (component.className) {
-							property = 'class';
-							pattern = component.className.split(' ')[0];
-						} else {
-							property = 'tag';
-							pattern = '';
-						}
+				for (let i = 0; i < result.payload.length; i++) {
+					const item = result.payload[i];
+					const group = payload.components[i];
+					if (!group) continue;
 
-						if (component.tag && pattern) {
-							actions.push({
-								tag: component.tag,
-								property: property,
-								pattern: pattern,
-								order: 0,
-								action: 'fill',
-								actionValue: item.insights.action_suggestion.payload.value,
-								fetchType: null,
-								identifier: null,
-							});
-						}
+					const suggestion = item?.action_suggestion || item?.insights?.action_suggestion || null;
+					const command = suggestion?.command || null;
+					if (!command) continue;
+					if (command === 'ERROR' || command === 'MANUAL_INTERVENTION') continue;
+
+					const childIndex = suggestion?.payload?.childIndex;
+					const targetSerializedElement = pickChildFromGroup(group, command, childIndex);
+					if (!targetSerializedElement) continue;
+
+					const selector = deriveSelectorFromSerializedElement(targetSerializedElement);
+					if (!selector?.pattern) continue;
+
+					if (command === 'TYPING') {
+						const value = suggestion?.payload?.value;
+						if (!value) continue;
+						actions.push({ ...selector, order: 0, action: 'typeSmoothly', value });
+					} else if (command === 'CLICK') {
+						actions.push({ ...selector, order: 0, action: 'click' });
+					} else if (command === 'SELECT_OPTION' || command === 'DROPDOWN_SELECT') {
+						const selectionValue = suggestion?.payload?.selectionValue ?? suggestion?.payload?.value;
+						if (!selectionValue) continue;
+						actions.push({ ...selector, order: 0, action: 'selectByText', value: selectionValue });
+					} else if (command === 'UPLOAD' || command === 'FILEUPLOAD') {
+						actions.push({ ...selector, order: 0, action: 'click' });
 					}
 				}
 				setExecutableActions(actions);
@@ -85,7 +135,7 @@ function AgentPage() {
 		} finally {
 			setLoading(false);
 		}
-	}, []);
+	}, [deriveSelectorFromSerializedElement, pickChildFromGroup, spiritBaseUrl, spiritPost, setExecutableActions]);
 
 
 	useEffect(() => {
@@ -100,6 +150,10 @@ function AgentPage() {
 				setComponentsData(message.payload);
 				// Kick off backend analysis
 				analyzeComponents(message.payload);
+			} else if (message?.action === 'executeActionsSequenceResult') {
+				const runId = message?.payload?.runId || null;
+				const isCurrentRun = !runId || runId === runIdRef.current;
+				if (isCurrentRun) setExecuting(false);
 			}
 		};
 		addListener(listener);
@@ -114,6 +168,7 @@ function AgentPage() {
 			setComponentsData(null);
 			setAnalysisData(null);
 			setExecutableActions([]);
+			setExecuting(false);
 			highlightInteractables(runId);
 		} catch (e) {
 			console.error('Analyze failed:', e);
@@ -130,10 +185,11 @@ function AgentPage() {
 
 	const handleExecute = () => {
 		if (!executableActions.length) return;
+		if (executing) return;
+
+		setExecuting(true);
 		console.log('Executing actions:', executableActions);
-		executableActions.forEach(action => {
-			handleAction(action.tag, action.property, action.pattern, action.order, action.action, action.actionValue, action.fetchType, action.identifier);
-		});
+		executeActionsSequence(executableActions, runIdRef.current);
 	};
 
 	const hasExecutableActions = executableActions.length > 0;
@@ -144,6 +200,7 @@ function AgentPage() {
 			onClear={handleClear}
 			onExecute={handleExecute}
 			loading={loading}
+			executing={executing}
 			error={error}
 			componentsData={componentsData}
 			analysisData={analysisData}

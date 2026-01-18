@@ -1,47 +1,102 @@
 import { findElements, waitForElements } from './elementFinder';
 
+function setNativeValue(element, value) {
+	if (!element) return;
+	const proto = element instanceof HTMLTextAreaElement
+		? window.HTMLTextAreaElement?.prototype
+		: element instanceof HTMLSelectElement
+			? window.HTMLSelectElement?.prototype
+			: window.HTMLInputElement?.prototype;
+
+	const descriptor = proto ? Object.getOwnPropertyDescriptor(proto, 'value') : null;
+	const setter = descriptor?.set;
+	if (setter) {
+		setter.call(element, value);
+	} else {
+		element.value = value;
+	}
+}
+
+const SELECTION_UNSUPPORTED_TYPES = new Set([
+	'email', 'number', 'date', 'datetime-local', 'month', 'time', 'week'
+]);
+
+function supportsSelectionRange(element) {
+	if (!element || typeof element.setSelectionRange !== 'function') return false;
+	const type = (element.getAttribute?.('type') || element.type || 'text').toLowerCase();
+	return !SELECTION_UNSUPPORTED_TYPES.has(type);
+}
+
+function wait(ms) {
+	return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function randomBetween(min, max) {
+	return Math.random() * (max - min) + min;
+}
+
 /**
  * Types a string into an input element character by character to simulate smooth typing.
  * Uses a combination of value insertion and event dispatching to be compatible with modern frameworks.
  * @param {HTMLElement} element The input or textarea element.
  * @param {string} text The string to type.
  */
-export function typeSmoothly(element, text) {
-	return new Promise((resolve) => {
-		let i = 0;
-		// Clear existing value
-		element.value = '';
+export async function typeSmoothly(element, text, options = {}) {
+	if (!element) return;
+	const stringText = text == null ? '' : String(text);
 
-		// Some frameworks need 'input' and 'change' events even for clearing
-		element.dispatchEvent(new Event('input', { bubbles: true }));
+	const minDelayMs = Number.isFinite(options.minDelayMs) ? options.minDelayMs : 10;
+	const maxDelayMs = Number.isFinite(options.maxDelayMs) ? options.maxDelayMs : 40;
 
-		const interval = setInterval(() => {
-			if (i < text.length) {
-				const char = text.charAt(i);
+	if (element && element.focus) element.focus();
+	setNativeValue(element, '');
+	element.dispatchEvent(new Event('input', { bubbles: true }));
 
-				// Simulate keydown
-				element.dispatchEvent(new KeyboardEvent('keydown', { key: char, bubbles: true }));
+	for (const char of stringText) {
+		const nextValue = `${element.value ?? ''}${char}`;
+		setNativeValue(element, nextValue);
 
-				// Update value - this is the part that often battles with the framework.
-				// We do not append; we set the absolute value based on what we've 'typed' so far.
-				// This prevents doubling if the framework also appends on keydown/input.
-				const currentExpectedValue = text.substring(0, i + 1);
-				element.value = currentExpectedValue;
-
-				// Simulate input event
-				element.dispatchEvent(new Event('input', { bubbles: true }));
-
-				// Simulate keyup
-				element.dispatchEvent(new KeyboardEvent('keyup', { key: char, bubbles: true }));
-
-				i++;
-			} else {
-				clearInterval(interval);
-				element.dispatchEvent(new Event('change', { bubbles: true }));
-				resolve();
+		if (supportsSelectionRange(element)) {
+			const length = nextValue.length;
+			try {
+				element.setSelectionRange(length, length);
+			} catch {
+				// Ignore browser quirks for specific input types.
 			}
-		}, 80); // Increased delay to allow framework state updates to settle
+		}
+
+		element.scrollLeft = element.scrollWidth;
+		if (element instanceof HTMLTextAreaElement) {
+			element.scrollTop = element.scrollHeight;
+		}
+
+		element.dispatchEvent(new Event('input', { bubbles: true }));
+		await wait(randomBetween(minDelayMs, maxDelayMs));
+	}
+
+	element.dispatchEvent(new Event('change', { bubbles: true }));
+}
+
+export function selectByText(element, selectionText) {
+	if (!element) return { success: false, error: 'No element' };
+	if (!(element instanceof HTMLSelectElement)) return { success: false, error: 'Target is not a <select>' };
+
+	const desired = (selectionText == null ? '' : String(selectionText)).trim().toLowerCase();
+	if (!desired) return { success: false, error: 'No selection text provided' };
+
+	const option = Array.from(element.options || []).find((opt) => {
+		const t = (opt?.textContent || '').trim().toLowerCase();
+		return t === desired;
 	});
+
+	if (!option) {
+		return { success: false, error: `No matching option for: ${selectionText}` };
+	}
+
+	element.value = option.value;
+	element.dispatchEvent(new Event('input', { bubbles: true }));
+	element.dispatchEvent(new Event('change', { bubbles: true }));
+	return { success: true };
 }
 
 /**
@@ -79,13 +134,18 @@ export async function performActionOnElement(payload) {
 				targetElement.click();
 				break;
 			case "fill":
-				targetElement.value = value;
+				setNativeValue(targetElement, value);
 				targetElement.dispatchEvent(new Event('input', { bubbles: true }));
 				targetElement.dispatchEvent(new Event('change', { bubbles: true }));
 				break;
 			case "typeSmoothly":
 				await typeSmoothly(targetElement, value);
 				break;
+			case "selectByText": {
+				const result = selectByText(targetElement, value);
+				if (!result.success) return result;
+				break;
+			}
 			default:
 				return { success: false, error: `Unsupported action: ${action}` };
 		}

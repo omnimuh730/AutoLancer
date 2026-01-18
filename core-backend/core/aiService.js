@@ -1,11 +1,33 @@
 // core/aiService.js
 const OpenAI = require('openai');
-const { getFullUserProfile } = require('./profileLoader');
+//const { getFullUserProfile } = require('./profileLoader');
 
 // Initialize OpenAI (Make sure OPENAI_API_KEY is in your .env)
 const openai = new OpenAI({
 	apiKey: process.env.OPENAI_API_KEY,
 });
+
+const getFullUserProfile = () => {
+	return ```
+**Your Details:**
+    - **Name:** Terry Huang
+	- **Location:** Gladewater, TX
+	- **Education:** Bachelor of Science at Texas A&M University
+	- **Company Career**
+		- Senior Software Engineer | Airbnb | Apr 2022 - Present
+		- Software Engineer | Amazon | Nov 2018 - Apr 2022
+		- Full Stack Developer | Tango, Health, Inc. | Mar 2016 - Nov 2018
+	- **Option Considerations:**
+		- Not veteran, no military experience
+		- Not willing to relocate
+		- Only looking forward remote work, not able to commute to office
+		- Gender: Male
+		- Sexual preference: Heterosexual
+		- Race: East Asian or Asian
+		- Age: 34 yrs
+		- Nationality: American
+```
+}
 
 // Helper to sum usage objects
 function sumUsage(u1, u2) {
@@ -63,15 +85,7 @@ async function generateDynamicAnswer(questionContext) {
 
 	You are my interview supporter. I will act as the interviewer (manager), and you will act as the interviewee.
 
-	**Your Details:**
-    - **Name:** Terry Huang
-	- **Location:** Gladewater, TX
-	- **Education:** Bachelor of Science at Texas A&M University
-	- **Company Career**
-		- Senior Software Engineer | Airbnb | Apr 2022 - Present
-		- Software Engineer | Amazon | Nov 2018 - Apr 2022
-		- Full Stack Developer | Tango, Health, Inc. | Mar 2016 - Nov 2018
-
+	${getFullUserProfile()}
 	---
     `;
 
@@ -180,16 +194,7 @@ async function generateSelectionAnswer(questionContext, optionsList) {
 
 	You are my interview supporter. I will act as the interviewer (manager), and you will act as the interviewee.
 
-	**Your Details:**
-    - **Name:** Terry Huang
-	- **Location:** Gladewater, TX
-	- **Education:** Bachelor of Science at Texas A&M University
-	- **Company Career**
-		- Senior Software Engineer | Airbnb | Apr 2022 - Present
-		- Software Engineer | Amazon | Nov 2018 - Apr 2022
-		- Full Stack Developer | Tango, Health, Inc. | Mar 2016 - Nov 2018
-
-	---
+	${getFullUserProfile()}
 
     Task:
     You will be given a form question and a list of possible options.

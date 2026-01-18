@@ -121,8 +121,8 @@ async function analyzeData(data) {
 					finalAction = {
 						command: "CLICK",
 						payload: {
-							childIndex: aiResponse.selectedIndex - 1,
-							text: optionsList[aiResponse.selectedIndex - 1],
+							childIndex: aiResponse.selectedIndex,
+							text: optionsList[aiResponse.selectedIndex],
 							reasoning: aiResponse.reasoning
 						}
 					};
@@ -132,7 +132,7 @@ async function analyzeData(data) {
 						command: "SELECT_OPTION",
 						payload: {
 							childIndex: 0, // usually the select element itself is index 0 or found via tag
-							selectionValue: optionsList[aiResponse.selectedIndex - 1]
+							selectionValue: optionsList[aiResponse.selectedIndex]
 						}
 					};
 				} else if (interactionType === 'COMBOBOX') {
@@ -140,7 +140,7 @@ async function analyzeData(data) {
 					finalAction = {
 						command: "TYPING",
 						payload: {
-							value: optionsList[aiResponse.selectedIndex - 1],
+							value: optionsList[aiResponse.selectedIndex],
 							childIndex: 0 // assuming input is first, or use findIndex
 						}
 					};

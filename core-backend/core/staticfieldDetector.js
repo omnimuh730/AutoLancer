@@ -42,6 +42,8 @@ const staticFieldDetectionRule = [
 	{ field: 'linkedin', tags: ['linkedin'] },
 	{ field: 'github', tags: ['github'] },
 	{ field: 'portfolio', tags: ['portfolio', 'website', 'personal site'] },
+	{ field: 'website', tags: ['website', 'personal site', 'webpage'] },
+	{ field: 'twitter', tags: ['twitter'] },
 	{ field: 'location', tags: ['location', 'city', 'address', 'residence'] },
 
 	// Updated Tags for Resume/Cover Letter to catch "Additional Info" context

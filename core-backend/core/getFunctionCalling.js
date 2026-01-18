@@ -13,6 +13,8 @@ const decisionSchema = {
 	'linkedin': 'https://linkedin.com/in/bryanreyes',
 	'github': 'https://github.com/bryanreyes',
 	'portfolio': 'https://bryanreyes.com',
+	'website': 'https://bryanreyes.com',
+	'twitter': 'https://twitter.com/bryanreyes',
 
 	// Files
 	'resume': 'C:\\Users\\Bryan\\Documents\\Resume.pdf',

@@ -7,6 +7,23 @@ const openai = new OpenAI({
 	apiKey: process.env.OPENAI_API_KEY,
 });
 
+// Helper to sum usage objects
+function sumUsage(u1, u2) {
+	return {
+		prompt_tokens: (u1?.prompt_tokens || 0) + (u2?.prompt_tokens || 0),
+		completion_tokens: (u1?.completion_tokens || 0) + (u2?.completion_tokens || 0),
+		total_tokens: (u1?.total_tokens || 0) + (u2?.total_tokens || 0)
+	};
+}
+
+const REFINEMENT_PROMPT = `
+Your answer still sound like AI-made. Please do not use buzzwords like solution, digital, drawn to, journey, pretty, extensively.
+Please give me a human-like response with practical, realistic experience, a natural, naive tone, and reasonable reasons.
+Please think creatively.
+Always use simple words, simple grammar, short sentence style so that can be easily understand.
+Answer much more shortly
+`;
+
 async function generateDynamicAnswer(questionContext) {
 	const userProfile = getFullUserProfile();
 
@@ -58,39 +75,57 @@ async function generateDynamicAnswer(questionContext) {
 	---
     `;
 
-	const userMessage = `Form Question Context: "${questionContext}"`;
+	const messages = [
+		{ role: "system", content: systemPrompt },
+		{ role: "user", content: `Form Question: "${questionContext}"` }
+	];
+
+	let totalUsage = { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
 
 	try {
-		const completion = await openai.chat.completions.create({
-			messages: [
-				{ role: "system", content: systemPrompt },
-				{ role: "user", content: userMessage }
-			],
+		const completion1 = await openai.chat.completions.create({
+			messages: messages,
 			model: "gpt-5-nano-2025-08-07", // or gpt-3.5-turbo
 		});
 
-		const answer = completion.choices[0].message.content.trim();
-		console.log(`[AI Generation] Q: "${questionContext}" -> A: "${answer}"`);
+
+		const draftAnswer = completion1.choices[0].message.content.trim();
+		totalUsage = sumUsage(totalUsage, completion1.usage);
+
+		// --- TURN 2: Refinement (The "Chat" Feature) ---
+		// We push the assistant's previous answer and our critique into history
+		messages.push({ role: "assistant", content: draftAnswer });
+		messages.push({ role: "user", content: REFINEMENT_PROMPT });
+
+		const completion2 = await openai.chat.completions.create({
+			messages: messages,
+			model: "gpt-5-nano-2025-08-07",
+		});
+
+		const refinedAnswer = completion2.choices[0].message.content.trim();
+		totalUsage = sumUsage(totalUsage, completion2.usage);
+
+		console.log(`[AI Chat] Q: "${questionContext}"\n -> Draft: ${draftAnswer.substring(0, 50)}...\n -> Refined: "${refinedAnswer}"`);
 
 		return {
-			answer: completion.choices[0].message.content.trim(),
-			usage: completion.usage
+			answer: refinedAnswer,
+			usage: totalUsage
 			/*
-			Completion usage {
-				prompt_tokens: 515,
-				completion_tokens: 1940,
-				total_tokens: 2455,
-				prompt_tokens_details: { 
-					cached_tokens: 0, audio_tokens: 0 
-				},
-				completion_tokens_details: {
-					reasoning_tokens: 1856,
-					audio_tokens: 0,
-					accepted_prediction_tokens: 0,
-					rejected_prediction_tokens: 0
+				Completion usage {
+					prompt_tokens: 515,
+					completion_tokens: 1940,
+					total_tokens: 2455,
+					prompt_tokens_details: { 
+						cached_tokens: 0, audio_tokens: 0 
+					},
+					completion_tokens_details: {
+						reasoning_tokens: 1856,
+						audio_tokens: 0,
+						accepted_prediction_tokens: 0,
+						rejected_prediction_tokens: 0
+					}
 				}
-			}
-			*/
+				*/
 		};
 
 	} catch (error) {

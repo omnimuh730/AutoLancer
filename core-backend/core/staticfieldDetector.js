@@ -1,45 +1,56 @@
-// core/staticfieldDetector.js
 const { getProfileValue } = require("./getFunctionCalling");
 
 function getMeaningfulContext(parentElement, childElement) {
-	let parentText = parentElement.innerText || '';
+	// 1. Start with the visible parent label text
+	let context = (parentElement.innerText || '').toLowerCase();
 
 	// Remove "Required" asterisks or common UI noise
-	parentText = parentText.replace(/\*/g, '').trim();
+	context = context.replace(/\*/g, '').trim();
 
-	// Ideally, we subtract child text from parent text to get the Label
-	// (e.g. "Name [Input]" -> "Name")
-	const childText = (childElement || []).map(child => child.innerText || '').join('');
+	// 2. SCRAPE CHILD ATTRIBUTES
+	// This is the fix. We look at the children to see if they contain 
+	// hints like 'placeholder="Add a cover letter"' or 'name="cover_letter"'
+	if (childElement && Array.isArray(childElement)) {
+		const attributeHints = childElement.map(child => {
+			const p = child.properties || {};
+			// Collect all helpful attributes
+			return [
+				p.placeholder,
+				p.name,
+				p.id,
+				p['aria-label'],
+				p.title
+			].filter(val => typeof val === 'string' && val.length > 0).join(' ');
+		}).join(' ');
 
-	// Simple heuristic: if parent starts with specific text, use it.
-	// In a real browser DOM we would use <label for="id">, but here we analyze text structure.
-
-	// If the label is clearly separated by newlines, take the top part
-	const splitText = parentText.split('\n');
-	if (splitText.length > 0) {
-		// Return the longest distinct string that isn't the child's value
-		// For now, returning the full lowercase parent text is the safest "context" bucket
-		return parentText.toLowerCase();
+		// Append these hints to the context
+		context += ' ' + attributeHints.toLowerCase();
 	}
 
-	return parentText.toLowerCase();
+	// Clean up newlines to make matching easier
+	context = context.replace(/\n/g, ' ');
+
+	return context;
 };
 
 const staticFieldDetectionRule = [
-	{ field: 'firstname', tags: ['first name', 'given name'] },
-	{ field: 'lastname', tags: ['last name', 'family name', 'surname'] },
-	{ field: 'name', tags: ['full name', 'name'] },
+	{ field: 'firstname', tags: ['first name', 'given name', 'fname'] },
+	{ field: 'lastname', tags: ['last name', 'family name', 'surname', 'lname'] },
+	{ field: 'name', tags: ['full name', 'name', 'your name'] },
 	{ field: 'email', tags: ['email'] },
-	{ field: 'phonenumber', tags: ['phone', 'mobile', 'telephone'] },
+	{ field: 'phonenumber', tags: ['phone', 'mobile', 'telephone', 'cell'] },
 	{ field: 'linkedin', tags: ['linkedin'] },
 	{ field: 'github', tags: ['github'] },
-	{ field: 'portfolio', tags: ['portfolio', 'website'] },
-	{ field: 'location', tags: ['location', 'city', 'address'] },
+	{ field: 'portfolio', tags: ['portfolio', 'website', 'personal site'] },
+	{ field: 'location', tags: ['location', 'city', 'address', 'residence'] },
+
+	// Updated Tags for Resume/Cover Letter to catch "Additional Info" context
 	{ field: 'resume', tags: ['resume', 'cv', 'curriculum vitae'] },
-	{ field: 'coverletter', tags: ['cover letter'] },
-	{ field: 'work_authorization', tags: ['legally authorized', 'work in the', 'eligibility'] },
-	{ field: 'sponsorship_required', tags: ['sponsorship', 'visa', 'h-1b'] },
-	{ field: 'salary_expectation', tags: ['salary', 'compensation', 'pay'] }
+	{ field: 'coverletter', tags: ['cover letter', 'coverletter'] }, // matches "add a cover letter..."
+
+	{ field: 'work_authorization', tags: ['legally authorized', 'work in the', 'eligibility', 'visa sponsorship'] },
+	{ field: 'sponsorship_required', tags: ['require sponsorship', 'need sponsorship', 'h-1b'] },
+	{ field: 'salary_expectation', tags: ['salary', 'compensation', 'pay', 'expected'] }
 ];
 
 function identifyFieldIntent(context) {

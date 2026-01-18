@@ -20,7 +20,8 @@ const decisionSchema = {
 	// Demographics & Legal (Exact text matching usually required for buttons)
 	'work_authorization': 'Yes',
 	'sponsorship_required': 'No', // <--- This answers your specific case
-	'salary_expectation': '160000'
+	'salary_expectation': '160000',
+	'coverletter': 'This is the cover letter'
 };
 
 function getProfileValue(fieldKey) {

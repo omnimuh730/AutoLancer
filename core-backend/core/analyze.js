@@ -1,41 +1,119 @@
-const cheerio = require('cheerio');
+// core/analyze.js
 const { matchesSubmitKeyword } = require('./submitDetector');
 const { checkIfThisElementIsUnnecessary } = require('./unnecessaryDetector');
-const { checkStaticField } = require('./staticfieldDetector');
+const { identifyFieldIntent, getMeaningfulContext } = require('./staticfieldDetector');
+const { classifyInteractionType } = require('./elementClassifier');
+const { getProfileValue } = require('./getFunctionCalling');
 
-function analyzeData(data) {
-	// Placeholder for analysis logic
-	//	console.log('Analyzing data:', data);
-	const innerHTML_Children = data.Children;
-	const innerHtml_Parent = data.Parent;
+async function analyzeData(data) {
+	const children = data.Children || [];
+	const parent = data.Parent;
 
-	// Check if current item - children item is Submit Application button
+	// 1. Submit Detection
+	if (children.length === 1 && matchesSubmitKeyword(children[0])) {
+		return {
+			summary: 'Submit Application button detected.',
+			action_suggestion: {
+				command: 'CLICK',
+				payload: {
+					childIndex: 0, // It's the only child
+					text: children[0].innerText
+				}
+			}
+		};
+	}
 
-	if (innerHTML_Children.length == 1) {
-		if (matchesSubmitKeyword(innerHTML_Children[0])) {
-			return {
-				summary: 'Submit Application button detected.',
-				insights: data
+	// 2. Unnecessary Detection
+	if (checkIfThisElementIsUnnecessary(parent, children)) {
+		return { summary: 'Unnecessary element detected.', action_suggestion: null };
+	}
+
+	// 3. Classify Interaction Type
+	const interactionType = classifyInteractionType(children);
+
+	// 4. Identify Context
+	const context = getMeaningfulContext(parent, children);
+	const intent = identifyFieldIntent(context);
+
+	let finalAction = null;
+
+	// 5. Logic Engine
+	if (intent.isStatic) {
+		const profileValue = getProfileValue(intent.field);
+
+		// --- UPLOAD ---
+		if (interactionType === 'UPLOAD') {
+			const inputIndex = children.findIndex(c => c.tag === 'input');
+			finalAction = {
+				command: "UPLOAD",
+				payload: {
+					value: profileValue,
+					childIndex: inputIndex // Pass index instead of selector
+				}
+			};
+		}
+		// --- TYPING / COMBOBOX ---
+		else if (interactionType === 'TYPING' || interactionType === 'COMBOBOX') {
+			// Find the index of the specific input field within the children array
+			const inputIndex = children.findIndex(c => c.tag === 'input' || c.tag === 'textarea');
+			finalAction = {
+				command: "TYPING",
+				payload: {
+					value: profileValue,
+					childIndex: inputIndex
+				}
+			};
+		}
+		// --- SELECTION (RADIOS / BUTTONS) ---
+		else if (interactionType === 'SELECTION_GROUP') {
+			if (profileValue) {
+				// Find index of child where innerText matches profile value (case-insensitive)
+				const targetIndex = children.findIndex(child => {
+					const text = (child.innerText || '').toLowerCase().trim();
+					const value = profileValue.toLowerCase().trim();
+					return text === value;
+				});
+
+				if (targetIndex !== -1) {
+					finalAction = {
+						command: "CLICK",
+						payload: {
+							// THIS IS THE FIX:
+							// We return the specific index in the children array.
+							// The frontend can now access component.children[childIndex].click()
+							childIndex: targetIndex,
+							text: children[targetIndex].innerText
+						}
+					};
+				} else {
+					finalAction = { command: "ERROR", reason: `Option '${profileValue}' not found in group.` };
+				}
+			} else {
+				finalAction = { command: "ERROR", reason: `No profile value found for '${intent.field}'` };
 			}
 		}
-	}
-
-	// Check if current item is unnecessary link like Terms of Privacy, Cookie Policy, etc.
-	let flagUnnecessary = false;
-	flagUnnecessary = checkIfThisElementIsUnnecessary(innerHtml_Parent, innerHTML_Children) ? flagUnnecessary = true : flagUnnecessary = false;
-
-	if (flagUnnecessary === true) {
-		return {
-			summary: 'Unnecessary element detected.',
-			insights: data
+	} else {
+		// Fallback for Dynamic Questions
+		if (interactionType !== 'UNKNOWN') {
+			return {
+				summary: 'Dynamic question detected.',
+				question: context,
+				action_suggestion: {
+					command: "AI_GENERATION",
+					payload: { message: "This requires Ai's response" }
+				}
+			};
 		}
 	}
 
-	const analyzed_StaticFieldReasoning = checkStaticField(innerHtml_Parent, innerHTML_Children);
-
 	return {
-		summary: 'This is a summary of the analyzed data.',
-		insights: analyzed_StaticFieldReasoning
+		summary: `Analyzed: ${intent.field || 'Unknown'} (${interactionType})`,
+		insights: {
+			field: intent.field,
+			interactionType: interactionType,
+			context: context
+		},
+		action_suggestion: finalAction
 	};
 }
 

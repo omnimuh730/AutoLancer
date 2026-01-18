@@ -4,7 +4,7 @@ const { checkIfThisElementIsUnnecessary } = require('./unnecessaryDetector');
 const { identifyFieldIntent, getMeaningfulContext } = require('./staticfieldDetector');
 const { classifyInteractionType } = require('./elementClassifier');
 const { getProfileValue } = require('./getFunctionCalling');
-const { generateDynamicAnswer } = require('./aiService'); // <--- Import AI Service
+const { generateDynamicAnswer, generateSelectionAnswer } = require('./aiService'); // <--- Import New Function
 
 async function analyzeData(data) {
 	const children = data.Children || [];
@@ -72,14 +72,16 @@ async function analyzeData(data) {
 						payload: { childIndex: targetIndex, text: children[targetIndex].innerText }
 					};
 				} else {
-					finalAction = { command: "ERROR", reason: `Option '${profileValue}' not found.` };
+					// Fallback to AI if exact static match fails? 
+					// Optional: You could jump to the dynamic logic here if static lookup fails.
+					finalAction = { command: "ERROR", reason: `Static option '${profileValue}' not found.` };
 				}
 			} else {
 				finalAction = { command: "ERROR", reason: `No profile value for '${intent.field}'` };
 			}
 		}
 	} else {
-		// --- DYNAMIC AI LOGIC (New) ---
+		// --- DYNAMIC AI LOGIC (Updated) ---
 
 		// If it's a text input or textarea but NOT a known static field (like Name/Email/CoverLetter)
 		// It is likely a question like "Why do you want to work here?" or "Describe a challenge."
@@ -100,9 +102,54 @@ async function analyzeData(data) {
 				}
 			};
 		}
+		// Case B: Dynamic Selection (e.g. "Do you have 5+ years of React?", "Are you willing to relocate?")
+		// Handles: Radio Groups, Checkbox Groups, Native Selects, Comboboxes (if treated as selection)
+		else if (['SELECTION_GROUP', 'SELECT', 'COMBOBOX'].includes(interactionType)) {
+
+			// 1. Extract Options from Children
+			// We strip clean the text for the AI to read
+			const optionsList = children.map(c => (c.innerText || '').trim()).filter(t => t.length > 0);
+
+			if (optionsList.length > 0) {
+				// 2. Call AI Selection Service
+				const aiResponse = await generateSelectionAnswer(context, optionsList);
+				aiUsageStats = aiResponse.usage;
+
+				// 3. Construct Action based on Interaction Type
+				if (interactionType === 'SELECTION_GROUP') {
+					// For radios/buttons, we CLICK the specific child
+					finalAction = {
+						command: "CLICK",
+						payload: {
+							childIndex: aiResponse.selectedIndex,
+							text: optionsList[aiResponse.selectedIndex],
+							reasoning: aiResponse.reasoning
+						}
+					};
+				} else if (interactionType === 'SELECT') {
+					// For native <select>, we usually SELECT by value or text
+					finalAction = {
+						command: "SELECT_OPTION",
+						payload: {
+							childIndex: 0, // usually the select element itself is index 0 or found via tag
+							selectionValue: optionsList[aiResponse.selectedIndex]
+						}
+					};
+				} else if (interactionType === 'COMBOBOX') {
+					// For combobox, we usually TYPE the selected option then enter/click
+					finalAction = {
+						command: "TYPING",
+						payload: {
+							value: optionsList[aiResponse.selectedIndex],
+							childIndex: 0 // assuming input is first, or use findIndex
+						}
+					};
+				}
+			} else {
+				finalAction = { command: "ERROR", reason: "Dynamic Selection: No options found in children." };
+			}
+		}
 		else if (interactionType !== 'UNKNOWN') {
-			// It's interactive (like a custom dropdown we don't recognize), but we can't type into it.
-			// We flag it for manual review or return a generic message.
 			return {
 				summary: 'Complex dynamic field detected (Non-text).',
 				question: context,

@@ -11,6 +11,7 @@ async function analyzeData(data, options = {}) {
 	const parent = data.Parent;
 	let aiUsageStats = null;
 	const jobDescription = options?.jobDescription || '';
+	const profileIdentifier = options?.profileIdentifier || '';
 
 	// 1. Submit Detection
 	if (children.length === 1 && matchesSubmitKeyword(children[0])) {
@@ -44,7 +45,7 @@ async function analyzeData(data, options = {}) {
 	// 5. Logic Engine
 	if (intent.isStatic) {
 		// --- STATIC FIELD LOGIC (Existing) ---
-		const profileValue = getProfileValue(intent.field);
+		const profileValue = getProfileValue(intent.field, { profileIdentifier });
 
 		if (interactionType === 'UPLOAD') {
 			const inputIndex = children.findIndex(c => c.tag === 'input');
@@ -90,7 +91,7 @@ async function analyzeData(data, options = {}) {
 		if (interactionType === 'TYPING') {
 
 			// 1. Call AI Service
-			const aiResponse = await generateDynamicAnswer(context, jobDescription);
+			const aiResponse = await generateDynamicAnswer(context, { jobDescription, profileIdentifier });
 			aiUsageStats = aiResponse.usage;
 
 			// 2. Find the input element
@@ -114,7 +115,7 @@ async function analyzeData(data, options = {}) {
 
 			if (optionsList.length > 0) {
 				// 2. Call AI Selection Service
-				const aiResponse = await generateSelectionAnswer(context, optionsList, jobDescription);
+				const aiResponse = await generateSelectionAnswer(context, optionsList, { jobDescription, profileIdentifier });
 				aiUsageStats = aiResponse.usage;
 
 				// 3. Construct Action based on Interaction Type

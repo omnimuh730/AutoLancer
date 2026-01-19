@@ -14,13 +14,15 @@ function AgentPage() {
 	const [loading, setLoading] = useState(false);
 	const [executing, setExecuting] = useState(false);
 	const [error, setError] = useState(null);
+	const [profiles, setProfiles] = useState([]);
+	const [profileIdentifier, setProfileIdentifier] = useState('');
 	const runIdRef = useRef(null);
 	const lastHandledRunIdRef = useRef(null);
 
 	const { executableActions, setExecutableActions, jobDescription, setJobDescription } = useAgentState();
 
 	const spiritApi = useApi(import.meta.env.VITE_SPIRIT_API_URL);
-	const { post: spiritPost, baseUrl: spiritBaseUrl } = spiritApi;
+	const { get: spiritGet, post: spiritPost, baseUrl: spiritBaseUrl } = spiritApi;
 
 	useEffect(() => {
 		try {
@@ -31,6 +33,47 @@ function AgentPage() {
 			console.error('Failed to persist Spirit API base URL:', e);
 		}
 	}, [spiritBaseUrl]);
+
+	useEffect(() => {
+		try {
+			if (typeof chrome === 'undefined' || !chrome.storage?.local) return;
+			chrome.storage.local.get('autolancerProfileIdentifier', (result) => {
+				const value = result?.autolancerProfileIdentifier;
+				if (typeof value === 'string') setProfileIdentifier(value);
+			});
+		} catch (e) {
+			console.error('Failed to load profile identifier from storage:', e);
+		}
+	}, []);
+
+	useEffect(() => {
+		if (!spiritBaseUrl) return;
+		let canceled = false;
+
+		(async () => {
+			try {
+				const result = await spiritGet('/profiles');
+				const list = Array.isArray(result?.profiles) ? result.profiles : [];
+				if (canceled) return;
+				setProfiles(list);
+				const hasSelected = list.some((p) => p?.identifier === profileIdentifier);
+				if ((!profileIdentifier || !hasSelected) && list.length) {
+					const next = list[0].identifier;
+					setProfileIdentifier(next);
+					try { chrome.storage?.local?.set?.({ autolancerProfileIdentifier: next }); } catch (e) {
+						console.error('Failed to persist default profile identifier:', e);
+					}
+				}
+			} catch (e) {
+				console.error('Failed to fetch profiles:', e);
+				if (!canceled) setProfiles([]);
+			}
+		})();
+
+		return () => {
+			canceled = true;
+		};
+	}, [profileIdentifier, spiritBaseUrl, spiritGet]);
 
 	const deriveSelectorFromSerializedElement = useCallback((serializedElement) => {
 		const tag = serializedElement?.tag;
@@ -92,6 +135,7 @@ function AgentPage() {
 			const body = {
 				userInput: JSON.stringify(payload, null, 2),
 				jobDescription: (jobDescription || '').trim(),
+				profileIdentifier: profileIdentifier || '',
 			};
 			const result = await spiritPost('/analyze', body);
 			setAnalysisData(result || null);
@@ -146,7 +190,7 @@ function AgentPage() {
 		} finally {
 			setLoading(false);
 		}
-	}, [deriveSelectorFromSerializedElement, pickChildFromGroup, jobDescription, spiritBaseUrl, spiritPost, setExecutableActions]);
+	}, [deriveSelectorFromSerializedElement, pickChildFromGroup, jobDescription, profileIdentifier, spiritBaseUrl, spiritPost, setExecutableActions]);
 
 
 	useEffect(() => {
@@ -195,6 +239,15 @@ function AgentPage() {
 		}
 	}, [setJobDescription]);
 
+	const handleProfileChange = useCallback((value) => {
+		setProfileIdentifier(value);
+		try {
+			chrome.storage?.local?.set?.({ autolancerProfileIdentifier: value });
+		} catch (e) {
+			console.error('Failed to persist profile identifier:', e);
+		}
+	}, []);
+
 	const handleAnalyze = () => {
 		try {
 			const runId = (crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`);
@@ -228,6 +281,9 @@ function AgentPage() {
 			loading={loading}
 			executing={executing}
 			error={error}
+			profiles={profiles}
+			profileIdentifier={profileIdentifier}
+			onProfileChange={handleProfileChange}
 			jobDescription={jobDescription}
 			onJobDescriptionChange={handleJobDescriptionChange}
 			componentsData={componentsData}

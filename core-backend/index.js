@@ -11,6 +11,7 @@ const { analyzeData } = require('./core/analyze');
 const { identifyFieldIntent } = require('./core/staticfieldDetector');
 const { getProfileValue } = require('./core/getFunctionCalling');
 const { generateDynamicAnswer } = require('./core/aiService');
+const { listProfiles, getProfileByIdentifier, getRawProfilesFile, PROFILE_PATH } = require('./core/profileLoader');
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -23,13 +24,28 @@ app.use(express.json({ limit: '5mb' })); // Increase limit for potentially large
 // Simple bridge to MCP profile data so the Agent can fetch it
 app.get('/profile', (req, res) => {
 	try {
-		const profilePath = path.resolve(__dirname, '..', 'mcp-profile-server', 'src', 'data', 'profile.json');
-		const content = fs.readFileSync(profilePath, 'utf8');
-		res.setHeader('Content-Type', 'application/json');
-		res.send(content);
+		const profileIdentifier = req.query?.identifier || null;
+		if (profileIdentifier) {
+			const profile = getProfileByIdentifier(profileIdentifier);
+			if (!profile) return res.status(404).json({ error: 'Profile not found' });
+			return res.json(profile);
+		}
+		// Default: return raw file
+		res.json(getRawProfilesFile());
 	} catch (e) {
 		console.error('Failed to load profile data from MCP server folder', e);
 		res.status(500).send('Failed to load profile data');
+	}
+});
+
+// GET /profiles -> list of selectable profiles (identifier + label)
+app.get('/profiles', (req, res) => {
+	try {
+		const profiles = listProfiles();
+		res.json({ profiles });
+	} catch (e) {
+		console.error('Failed to list profiles', e);
+		res.status(500).json({ error: 'Failed to list profiles', profilePath: PROFILE_PATH });
 	}
 });
 
@@ -135,6 +151,7 @@ app.post('/autofill-field', async (req, res) => {
 	try {
 		const context = req.body?.context || '';
 		const jobDescription = req.body?.jobDescription || '';
+		const profileIdentifier = req.body?.profileIdentifier || '';
 
 		if (!context || typeof context !== 'string') {
 			return res.status(400).json({ error: 'Missing context in request body' });
@@ -144,11 +161,11 @@ app.post('/autofill-field', async (req, res) => {
 		const intent = identifyFieldIntent(normalizedContext);
 
 		if (intent?.isStatic && intent.field) {
-			const value = getProfileValue(intent.field) || '';
+			const value = getProfileValue(intent.field, { profileIdentifier }) || '';
 			return res.json({ mode: 'static', field: intent.field, value });
 		}
 
-		const ai = await generateDynamicAnswer(context, jobDescription);
+		const ai = await generateDynamicAnswer(context, { jobDescription, profileIdentifier });
 		return res.json({ mode: 'ai', value: ai.answer, usage: ai.usage || null });
 	} catch (e) {
 		console.error('Error generating autofill answer', e);
@@ -159,6 +176,7 @@ app.post('/autofill-field', async (req, res) => {
 app.post('/analyze', async (req, res) => {
 	const payload = req.body.userInput || null;
 	const jobDescription = req.body?.jobDescription || '';
+	const profileIdentifier = req.body?.profileIdentifier || '';
 
 	if (!payload) {
 		return res.status(400).json({ error: 'Missing userInput in request body' });
@@ -176,7 +194,7 @@ app.post('/analyze', async (req, res) => {
 
 	// --- 2. DEFINE WORKER ---
 	const worker = async (component) => {
-		const result = await analyzeData(component, { jobDescription });
+		const result = await analyzeData(component, { jobDescription, profileIdentifier });
 
 		// Accumulate cost metrics safely
 		if (result.aiUsage) {

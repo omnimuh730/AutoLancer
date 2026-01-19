@@ -1,15 +1,11 @@
 // core/aiService.js
 const OpenAI = require('openai');
-const { getFullUserProfile } = require('./profileLoader');
+const { getProfileByIdentifier, formatProfileForPrompt } = require('./profileLoader');
 
 // Initialize OpenAI (Make sure OPENAI_API_KEY is in your .env)
 const openai = new OpenAI({
 	apiKey: process.env.OPENAI_API_KEY,
 });
-
-const getFullUserProfile = (profileIdentifier) => {
-	return getFullUserProfile();
-}
 
 const getSystemSetting = () => {
 	return `
@@ -46,7 +42,6 @@ const getSystemSetting = () => {
     ### Interview Roleplay Instructions
 
 	You are my interview supporter. I will act as the interviewer (manager), and you will act as the interviewee.
-	${getFullUserProfile(profileIdentifier)}
 	`;
 }
 
@@ -67,8 +62,11 @@ Always use simple words, simple grammar, short sentence style so that can be eas
 Answer much more shortly
 `;
 
-async function generateDynamicAnswer(questionContext, jobDescription = '') {
-	const userProfile = getFullUserProfile();
+async function generateDynamicAnswer(questionContext, options = {}) {
+	const jobDescription = options?.jobDescription || '';
+	const profileIdentifier = options?.profileIdentifier || '';
+	const profile = getProfileByIdentifier(profileIdentifier);
+	const userProfile = formatProfileForPrompt(profile);
 	const jobContext = jobDescription && String(jobDescription).trim()
 		? `\n\n### Job Description Context (optional)\n${String(jobDescription).trim()}\n`
 		: '';
@@ -149,8 +147,11 @@ async function generateDynamicAnswer(questionContext, jobDescription = '') {
  * @param {string} questionContext - The label/context of the field.
  * @param {string[]} optionsList - Array of text strings representing the available options.
  */
-async function generateSelectionAnswer(questionContext, optionsList, jobDescription = '') {
-	const userProfile = getFullUserProfile();
+async function generateSelectionAnswer(questionContext, optionsList, options = {}) {
+	const jobDescription = options?.jobDescription || '';
+	const profileIdentifier = options?.profileIdentifier || '';
+	const profile = getProfileByIdentifier(profileIdentifier);
+	const userProfile = formatProfileForPrompt(profile);
 	const jobContext = jobDescription && String(jobDescription).trim()
 		? `\n\n### Job Description Context (optional)\n${String(jobDescription).trim()}\n`
 		: '';

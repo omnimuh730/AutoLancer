@@ -1,34 +1,56 @@
 // core/getFunctionCalling.js
 
-const decisionSchema = {
-	// Identity
-	'firstname': 'Bryan',
-	'lastname': 'Reyes',
-	'name': 'Bryan Reyes',
-	'email': 'bryanreyes@example.com',
-	'phonenumber': '+1 123 456 7890',
-	'location': 'Salt Lake City, Utah',
+const { getProfileByIdentifier } = require('./profileLoader');
 
-	// Links
-	'linkedin': 'https://linkedin.com/in/bryanreyes',
-	'github': 'https://github.com/bryanreyes',
-	'portfolio': 'https://bryanreyes.com',
-	'website': 'https://bryanreyes.com',
-	'twitter': 'https://twitter.com/bryanreyes',
+function splitName(fullName) {
+	const value = (fullName || '').trim();
+	if (!value) return { first: '', last: '' };
+	const parts = value.split(/\s+/).filter(Boolean);
+	if (parts.length === 1) return { first: parts[0], last: '' };
+	return { first: parts[0], last: parts.slice(1).join(' ') };
+}
 
-	// Files
-	'resume': 'C:\\Users\\Bryan\\Documents\\Resume.pdf',
+function getProfileValue(fieldKey, options = {}) {
+	const profile = getProfileByIdentifier(options.profileIdentifier);
+	if (!profile) return null;
 
-	// Demographics & Legal (Exact text matching usually required for buttons)
-	'work_authorization': 'Yes',
-	'sponsorship_required': 'No', // <--- This answers your specific case
-	'salary_expectation': '160000',
-	'coverletter': 'This is the cover letter',
-	'fileupload': ''
-};
+	const fullName = profile?.personal?.name || profile?.identifier || '';
+	const { first, last } = splitName(fullName);
 
-function getProfileValue(fieldKey) {
-	return decisionSchema[fieldKey] || null;
+	switch (fieldKey) {
+		// Identity
+		case 'firstname': return first || null;
+		case 'lastname': return last || null;
+		case 'name': return fullName || null;
+		case 'email': return profile?.contact?.email || null;
+		case 'phonenumber': return profile?.contact?.phone || null;
+		case 'location': return profile?.personal?.location || null;
+
+		// Links
+		case 'linkedin': return profile?.contact?.linkedin || null;
+		case 'github': return profile?.contact?.github || null;
+		case 'portfolio': return profile?.contact?.portfolio || profile?.contact?.website || null;
+		case 'website': return profile?.contact?.website || profile?.contact?.portfolio || null;
+		case 'twitter': return profile?.contact?.twitter || null;
+
+		// Files (optional; add to profile.json when available)
+		case 'resume': return profile?.files?.resumePath || profile?.resumePath || null;
+		case 'coverletter': return profile?.files?.coverLetterPath || profile?.coverLetterPath || null;
+		case 'fileupload': return profile?.files?.fileUploadPath || null;
+
+		// Work / preferences
+		case 'work_authorization': return profile?.work?.workAuthorization || null;
+		case 'salary_expectation': return profile?.preference?.desiredSalary || null;
+
+		// EEO style fields (often used in selection questions)
+		case 'gender': return profile?.eeo?.gender || profile?.eeo?.Gender || null;
+		case 'race': return profile?.eeo?.race || null;
+		case 'veteran_status': return profile?.eeo?.veteranStatus || null;
+		case 'disability_status': return profile?.eeo?.disabilityStatus || null;
+
+		default:
+			return null;
+	}
 }
 
 module.exports = { getProfileValue };

@@ -1,4 +1,4 @@
-import { Button, Paper, Box, Stack, Typography, TextField } from '@mui/material';
+import { Button, Paper, Box, Stack, Typography, TextField, FormControl, InputLabel, Select, MenuItem } from '@mui/material';
 import ResponseTreeView from './reference/ResponseTreeView.jsx';
 
 export function AgentUI({
@@ -7,6 +7,9 @@ export function AgentUI({
 	loading,
 	executing,
 	error,
+	profiles,
+	profileIdentifier,
+	onProfileChange,
 	jobDescription,
 	onJobDescriptionChange,
 	componentsData,
@@ -18,6 +21,21 @@ export function AgentUI({
 			<Paper elevation={2} sx={{ p: 2, mb: 2 }}>
 				<Stack spacing={2}>
 					<Typography variant="h5">Agent</Typography>
+					<FormControl fullWidth>
+						<InputLabel id="autolancer-profile-select-label">Profile</InputLabel>
+						<Select
+							labelId="autolancer-profile-select-label"
+							label="Profile"
+							value={profileIdentifier || ''}
+							onChange={(e) => onProfileChange?.(e.target.value)}
+						>
+							{(profiles || []).map((p) => (
+								<MenuItem key={p.identifier} value={p.identifier}>
+									{p.label || p.identifier}
+								</MenuItem>
+							))}
+						</Select>
+					</FormControl>
 					<TextField
 						label="Job Description (optional)"
 						placeholder="Paste the job description here to improve AI answers"

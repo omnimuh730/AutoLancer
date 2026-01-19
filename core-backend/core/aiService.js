@@ -29,29 +29,9 @@ const getFullUserProfile = () => {
 `
 }
 
-// Helper to sum usage objects
-function sumUsage(u1, u2) {
-	return {
-		prompt_tokens: (u1?.prompt_tokens || 0) + (u2?.prompt_tokens || 0),
-		completion_tokens: (u1?.completion_tokens || 0) + (u2?.completion_tokens || 0),
-		total_tokens: (u1?.total_tokens || 0) + (u2?.total_tokens || 0)
-	};
-}
-
-const REFINEMENT_PROMPT = `
-Your answer still sound like AI-made. Please do not use buzzwords like solution, digital, drawn to, journey, pretty, extensively.
-Please give me a human-like response with practical, realistic experience, a natural, naive tone, and reasonable reasons.
-Please think creatively.
-Always use simple words, simple grammar, short sentence style so that can be easily understand.
-Answer much more shortly
-`;
-
-async function generateDynamicAnswer(questionContext) {
-	const userProfile = getFullUserProfile();
-
-	// Construct a prompt that gives the AI the context it needs
-	const systemPrompt = `
-    ### Rules for your Responses:
+const getSystemSetting = () => {
+	return `
+	 ### Rules for your Responses:
 
 	1. **Style:**
 		- Use creative phrasing, natural and respectful tone.
@@ -84,6 +64,32 @@ async function generateDynamicAnswer(questionContext) {
     ### Interview Roleplay Instructions
 
 	You are my interview supporter. I will act as the interviewer (manager), and you will act as the interviewee.
+	`;
+}
+
+// Helper to sum usage objects
+function sumUsage(u1, u2) {
+	return {
+		prompt_tokens: (u1?.prompt_tokens || 0) + (u2?.prompt_tokens || 0),
+		completion_tokens: (u1?.completion_tokens || 0) + (u2?.completion_tokens || 0),
+		total_tokens: (u1?.total_tokens || 0) + (u2?.total_tokens || 0)
+	};
+}
+
+const REFINEMENT_PROMPT = `
+Your answer still sound like AI-made. Please do not use buzzwords like solution, digital, drawn to, journey, pretty, extensively.
+Please give me a human-like response with practical, realistic experience, a natural, naive tone, and reasonable reasons.
+Please think creatively.
+Always use simple words, simple grammar, short sentence style so that can be easily understand.
+Answer much more shortly
+`;
+
+async function generateDynamicAnswer(questionContext) {
+	const userProfile = getFullUserProfile();
+
+	// Construct a prompt that gives the AI the context it needs
+	const systemPrompt = `
+    ${getSystemSetting}
 
 	${userProfile}
 	---
@@ -160,39 +166,7 @@ async function generateSelectionAnswer(questionContext, optionsList) {
 	const userProfile = getFullUserProfile();
 
 	const systemPrompt = `
-    ### Rules for your Responses:
-
-	1. **Style:**
-		- Use creative phrasing, natural and respectful tone.
-		- Avoid repetitive or cliché words like *"cutting-edge"* or *"throughout my career."*
-		- Keep sentences sharp, professional, and polished—in practically detail.
-	2. **Content:**
-		- Focus on practical, real-world experience with advanced technical insight.
-		- Tie answers directly to industry-specific practices.
-		- Anticipate the recruiter’s intent and align responses accordingly.
-	3. **Prohibited Responses:**
-		- Avoid saying you have little or no experience.
-		- Don’t provide code in answers.
-		- Never format answers as bullets.
-	4. **Goal:**
-		- Impress through clarity, expertise, and relevance.
-		- Always answer concisely and directly to what is asked—no unnecessary elaboration.
-
-	---
-
-	You will provide tailored, impactful responses for the best hiring impression. Always think about what the recruiter wants to hear.
-
-	Always keep human's natural speaking tone and easy words to understand like Steven Job's speaking style.
-
-	Answer should be technicall very detail by mentioning complex professional glossaries, not well-known glossaries with detailed real scenario.
-
-	Tone should be the most natural, the closest tone of human's normal speaking tone.
-
-	Ideal length of response is 2-3 sentences - shortly.
-    
-    ### Interview Roleplay Instructions
-
-	You are my interview supporter. I will act as the interviewer (manager), and you will act as the interviewee.
+    ${getSystemSetting()}
 
 	${userProfile}
 

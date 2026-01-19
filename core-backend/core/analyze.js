@@ -16,10 +16,11 @@ async function analyzeData(data) {
 		return {
 			summary: 'Submit Application button detected.',
 			action_suggestion: {
-				command: 'CLICK',
+				command: 'MANUAL_INTERVENTION',
 				payload: {
 					childIndex: 0,
-					text: children[0].innerText
+					text: children[0].innerText,
+					message: 'Submit/Apply/Next detected. Please review the form and click manually.'
 				}
 			}
 		};

@@ -4,7 +4,7 @@ const path = require('path');
 
 let cachedProfile = null;
 
-function getFullUserProfile() {
+function getFullUserProfile(profileIdentifier) {
 	if (cachedProfile) return cachedProfile;
 
 	try {

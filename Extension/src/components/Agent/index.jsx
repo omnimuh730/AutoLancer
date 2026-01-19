@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRuntime } from '../../api/runtimeContext';
 import useApi from '../../api/useApi';
 import { AgentUI } from './UI';
-import { highlightInteractables, clearHighlights, executeActionsParallel } from '../../contentScript/interactionBridge';
+import { highlightInteractables, executeActionsParallel } from '../../contentScript/interactionBridge';
 import { useAgentState } from './hooks';
 
 /* global chrome */
@@ -210,14 +210,6 @@ function AgentPage() {
 		}
 	};
 
-	const handleClear = () => {
-		try {
-			clearHighlights();
-		} catch (e) {
-			console.error('Clear failed:', e);
-		}
-	};
-
 	const handleExecute = () => {
 		if (!executableActions.length) return;
 		if (executing) return;
@@ -232,7 +224,6 @@ function AgentPage() {
 	return (
 		<AgentUI
 			onAnalyze={handleAnalyze}
-			onClear={handleClear}
 			onExecute={handleExecute}
 			loading={loading}
 			executing={executing}

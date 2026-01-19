@@ -52,7 +52,8 @@ const staticFieldDetectionRule = [
 
 	{ field: 'work_authorization', tags: ['legally authorized', 'work in the', 'eligibility', 'visa sponsorship'] },
 	{ field: 'sponsorship_required', tags: ['require sponsorship', 'need sponsorship', 'h-1b'] },
-	{ field: 'salary_expectation', tags: ['salary', 'compensation', 'pay', 'expected'] }
+	{ field: 'salary_expectation', tags: ['salary', 'compensation', 'pay', 'expected'] },
+	{ field: 'file_upload', tags: ['upload', 'attach'] }
 ];
 
 function identifyFieldIntent(context) {

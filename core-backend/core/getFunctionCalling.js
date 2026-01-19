@@ -23,7 +23,8 @@ const decisionSchema = {
 	'work_authorization': 'Yes',
 	'sponsorship_required': 'No', // <--- This answers your specific case
 	'salary_expectation': '160000',
-	'coverletter': 'This is the cover letter'
+	'coverletter': 'This is the cover letter',
+	'fileupload': ''
 };
 
 function getProfileValue(fieldKey) {

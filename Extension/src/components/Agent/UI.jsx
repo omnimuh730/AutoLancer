@@ -3,7 +3,6 @@ import ResponseTreeView from './reference/ResponseTreeView.jsx';
 
 export function AgentUI({
 	onAnalyze,
-	onClear,
 	onExecute,
 	loading,
 	executing,
@@ -29,11 +28,8 @@ export function AgentUI({
 						fullWidth
 					/>
 					<Box sx={{ display: 'flex', gap: 2 }}>
-						<Button variant="contained" color="primary" onClick={onAnalyze} fullWidth>
+						<Button variant="contained" color="primary" onClick={onAnalyze} fullWidth disabled={loading}>
 							Highlight & Collect
-						</Button>
-						<Button variant="outlined" color="secondary" onClick={onClear} fullWidth>
-							Clear Highlights
 						</Button>
 						<Button variant="contained" color="success" onClick={onExecute} fullWidth disabled={!hasExecutableActions || loading || executing}>
 							{executing ? 'Executing...' : 'Execute Actions'}

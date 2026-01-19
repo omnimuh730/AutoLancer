@@ -84,14 +84,18 @@ Always use simple words, simple grammar, short sentence style so that can be eas
 Answer much more shortly
 `;
 
-async function generateDynamicAnswer(questionContext) {
+async function generateDynamicAnswer(questionContext, jobDescription = '') {
 	const userProfile = getFullUserProfile();
+	const jobContext = jobDescription && String(jobDescription).trim()
+		? `\n\n### Job Description Context (optional)\n${String(jobDescription).trim()}\n`
+		: '';
 
 	// Construct a prompt that gives the AI the context it needs
 	const systemPrompt = `
-    ${getSystemSetting}
+    ${getSystemSetting()}
 
 	${userProfile}
+	${jobContext}
 	---
     `;
 
@@ -162,13 +166,17 @@ async function generateDynamicAnswer(questionContext) {
  * @param {string} questionContext - The label/context of the field.
  * @param {string[]} optionsList - Array of text strings representing the available options.
  */
-async function generateSelectionAnswer(questionContext, optionsList) {
+async function generateSelectionAnswer(questionContext, optionsList, jobDescription = '') {
 	const userProfile = getFullUserProfile();
+	const jobContext = jobDescription && String(jobDescription).trim()
+		? `\n\n### Job Description Context (optional)\n${String(jobDescription).trim()}\n`
+		: '';
 
 	const systemPrompt = `
     ${getSystemSetting()}
 
 	${userProfile}
+	${jobContext}
 
     Task:
     You will be given a form question and a list of possible options.

@@ -35,6 +35,237 @@ function randomBetween(min, max) {
 	return Math.random() * (max - min) + min;
 }
 
+function normalizeText(text) {
+	return (text == null ? '' : String(text)).trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+function deriveSelectionCandidates(text) {
+	const raw = text == null ? '' : String(text);
+	const candidates = new Set();
+
+	for (const phrase of extractQuotedPhrases(raw)) candidates.add(phrase);
+	candidates.add(raw);
+
+	const cleaned = raw
+		.replace(/^[\s\-–—]*\b(please\s+)?(select|choose|pick)\b[:\s]*/i, '')
+		.replace(/[.!\s]+$/g, '')
+		.trim();
+	if (cleaned) candidates.add(cleaned);
+
+	const lowered = normalizeText(raw);
+	if (lowered.startsWith('yes')) candidates.add('Yes');
+	if (lowered.startsWith('no')) candidates.add('No');
+
+	return Array.from(candidates).filter(Boolean);
+}
+
+function extractQuotedPhrases(text) {
+	const value = text == null ? '' : String(text);
+	const phrases = [];
+	const regex = /"([^"]+)"|“([^”]+)”/g;
+	let match;
+	while ((match = regex.exec(value)) !== null) {
+		const phrase = (match[1] || match[2] || '').trim();
+		if (phrase) phrases.push(phrase);
+	}
+	return phrases;
+}
+
+function getSelect2Container(element) {
+	if (!element) return null;
+	if (element.classList?.contains('select2-container')) return element;
+	return element.closest?.('.select2-container') || null;
+}
+
+function getUnderlyingSelectForSelect2(container) {
+	if (!container) return null;
+	// Select2 v3 uses container id like "s2id_<originalId>"
+	const id = container.getAttribute('id') || '';
+	if (id && id.startsWith('s2id_')) {
+		const originalId = id.slice('s2id_'.length);
+		const candidate = document.getElementById(originalId);
+		if (candidate instanceof HTMLSelectElement) return candidate;
+	}
+
+	// Sometimes the original <select> lives next to the container or inside it.
+	const inside = container.querySelector?.('select');
+	if (inside instanceof HTMLSelectElement) return inside;
+	const prev = container.previousElementSibling;
+	if (prev instanceof HTMLSelectElement) return prev;
+
+	return null;
+}
+
+function openSelect2(container) {
+	const opener = container?.querySelector?.('a.select2-choice, .select2-selection, [role="button"]') || container;
+	try {
+		opener.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+	} catch {
+		// best effort
+	}
+	try {
+		opener.click();
+	} catch {
+		// best effort
+	}
+}
+
+async function waitForSelect2Dropdown(timeoutMs = 2000) {
+	const start = Date.now();
+	while (Date.now() - start < timeoutMs) {
+		const v3 = document.querySelector('.select2-drop-active, .select2-drop.select2-drop-active');
+		if (v3) return v3;
+		const v4 = document.querySelector('.select2-dropdown');
+		if (v4) return v4;
+		await wait(50);
+	}
+	return null;
+}
+
+function scoreTokenOverlap(a, b) {
+	const ta = new Set(normalizeText(a).split(' ').filter(Boolean));
+	const tb = new Set(normalizeText(b).split(' ').filter(Boolean));
+	if (!ta.size || !tb.size) return 0;
+	let overlap = 0;
+	for (const t of ta) if (tb.has(t)) overlap++;
+	return overlap / Math.max(ta.size, tb.size);
+}
+
+function findBestMatchingNode(nodes, desiredText) {
+	if (!Array.isArray(nodes) || nodes.length === 0) return null;
+	const desired = normalizeText(desiredText);
+	if (!desired) return null;
+
+	// Exact
+	for (const node of nodes) {
+		const text = normalizeText(node?.textContent || node?.innerText || '');
+		if (text === desired) return node;
+	}
+	// Contains
+	for (const node of nodes) {
+		const text = normalizeText(node?.textContent || node?.innerText || '');
+		if (text && text.includes(desired)) return node;
+	}
+	// Reverse contains (desired contains option) for long instruction strings
+	for (const node of nodes) {
+		const text = normalizeText(node?.textContent || node?.innerText || '');
+		if (text && desired.includes(text)) return node;
+	}
+
+	// Fuzzy token overlap (handles "Not a veteran." vs "I am not a protected veteran")
+	let best = null;
+	let bestScore = 0;
+	for (const node of nodes) {
+		const text = node?.textContent || node?.innerText || '';
+		const score = scoreTokenOverlap(desiredText, text);
+		if (score > bestScore) {
+			bestScore = score;
+			best = node;
+		}
+	}
+	if (best && bestScore >= 0.34) return best;
+
+	return null;
+}
+
+function getSelect2ChosenText(container) {
+	if (!container) return '';
+	const chosen = container.querySelector('.select2-chosen, .select2-selection__rendered');
+	return (chosen?.textContent || chosen?.innerText || '').trim();
+}
+
+async function selectFromSelect2(element, selectionText) {
+	const container = getSelect2Container(element) || getSelect2Container(element?.parentElement);
+	if (!container) return { success: false, error: 'Select2 container not found' };
+
+	const candidates = deriveSelectionCandidates(selectionText);
+	const underlyingSelect = getUnderlyingSelectForSelect2(container);
+
+	if (underlyingSelect) {
+		for (const candidate of candidates) {
+			const desired = normalizeText(candidate);
+			if (!desired) continue;
+			const option = Array.from(underlyingSelect.options || []).find((opt) => normalizeText(opt?.textContent || '') === desired)
+				|| Array.from(underlyingSelect.options || []).find((opt) => normalizeText(opt?.textContent || '').includes(desired));
+
+			if (option) {
+				underlyingSelect.value = option.value;
+				underlyingSelect.dispatchEvent(new Event('input', { bubbles: true }));
+				underlyingSelect.dispatchEvent(new Event('change', { bubbles: true }));
+
+				try {
+					// If the page uses jQuery + Select2, triggering via jQuery helps Select2 sync UI reliably.
+					if (window.jQuery) {
+						window.jQuery(underlyingSelect).val(option.value).trigger('change');
+					}
+				} catch {
+					// best effort
+				}
+
+				// Verify display updated; if not, fall back to UI selection.
+				const chosenNow = normalizeText(getSelect2ChosenText(container));
+				const expected = normalizeText(option.textContent || '');
+				if (chosenNow && expected && (chosenNow === expected || chosenNow.includes(expected))) {
+					return { success: true };
+				}
+				break;
+			}
+		}
+	}
+
+	openSelect2(container);
+	const dropdown = await waitForSelect2Dropdown(2000);
+	if (!dropdown) return { success: false, error: 'Select2 dropdown did not open' };
+
+	// Type into search field if present to narrow results.
+	const searchInput = dropdown.querySelector('input.select2-input, .select2-search input, input.select2-search__field');
+	if (searchInput) {
+		searchInput.focus?.();
+		const primary = candidates[0] || '';
+		setNativeValue(searchInput, primary);
+		searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+		searchInput.dispatchEvent(new KeyboardEvent('keyup', { key: 'a', bubbles: true }));
+		await wait(100);
+	}
+
+	// Collect option nodes across Select2 v3/v4.
+	const v3Labels = Array.from(dropdown.querySelectorAll('.select2-results li .select2-result-label'));
+	const v3Lis = Array.from(dropdown.querySelectorAll('.select2-results li'));
+	const v4Options = Array.from(dropdown.querySelectorAll('.select2-results__option')).filter((n) => !n.classList?.contains('select2-results__option--disabled'));
+	const optionNodes = [...(v3Lis.length ? v3Lis : v3Labels), ...v4Options].filter(Boolean);
+
+	for (const candidate of candidates) {
+		const match = findBestMatchingNode(optionNodes, candidate);
+		if (!match) continue;
+		const clickable = match.closest?.('li') || match;
+		clickable.scrollIntoView?.({ block: 'nearest' });
+		try {
+			clickable.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+		} catch {
+			// best effort
+		}
+		clickable.click?.();
+
+		const chosenNow = normalizeText(getSelect2ChosenText(container));
+		const expected = normalizeText(candidate);
+		if (chosenNow && expected && (chosenNow === expected || chosenNow.includes(expected) || expected.includes(chosenNow))) {
+			return { success: true };
+		}
+		return { success: true };
+	}
+
+	// Last resort: keyboard selection (first result / best guess).
+	if (searchInput) {
+		searchInput.focus?.();
+		searchInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+		searchInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+		searchInput.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', bubbles: true }));
+		return { success: true };
+	}
+
+	return { success: false, error: 'No matching Select2 option found' };
+}
+
 /**
  * Types a string into an input element character by character to simulate smooth typing.
  * Uses a combination of value insertion and event dispatching to be compatible with modern frameworks.
@@ -77,26 +308,72 @@ export async function typeSmoothly(element, text, options = {}) {
 	element.dispatchEvent(new Event('change', { bubbles: true }));
 }
 
-export function selectByText(element, selectionText) {
-	if (!element) return { success: false, error: 'No element' };
-	if (!(element instanceof HTMLSelectElement)) return { success: false, error: 'Target is not a <select>' };
+async function selectFromAriaDropdown(element, selectionText) {
+	const candidates = [...extractQuotedPhrases(selectionText), selectionText].filter(Boolean);
+	const desired = candidates[0] || '';
 
-	const desired = (selectionText == null ? '' : String(selectionText)).trim().toLowerCase();
-	if (!desired) return { success: false, error: 'No selection text provided' };
-
-	const option = Array.from(element.options || []).find((opt) => {
-		const t = (opt?.textContent || '').trim().toLowerCase();
-		return t === desired;
-	});
-
-	if (!option) {
-		return { success: false, error: `No matching option for: ${selectionText}` };
+	element.focus?.();
+	try {
+		element.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }));
+		element.dispatchEvent(new KeyboardEvent('keyup', { key: ' ', bubbles: true }));
+	} catch {
+		// best effort
+	}
+	try {
+		element.click?.();
+	} catch {
+		// best effort
 	}
 
-	element.value = option.value;
-	element.dispatchEvent(new Event('input', { bubbles: true }));
-	element.dispatchEvent(new Event('change', { bubbles: true }));
+	await wait(100);
+
+	// Some widgets accept typing to filter/select.
+	if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
+		await typeSmoothly(element, desired);
+	}
+
+	try {
+		element.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+		element.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', bubbles: true }));
+	} catch {
+		// best effort
+	}
+
 	return { success: true };
+}
+
+export async function selectByText(element, selectionText) {
+	if (!element) return { success: false, error: 'No element' };
+
+	// Native <select>
+	if (element instanceof HTMLSelectElement) {
+		const desired = normalizeText(selectionText);
+		if (!desired) return { success: false, error: 'No selection text provided' };
+
+		const option = Array.from(element.options || []).find((opt) => normalizeText(opt?.textContent || '') === desired)
+			|| Array.from(element.options || []).find((opt) => normalizeText(opt?.textContent || '').includes(desired));
+
+		if (!option) {
+			return { success: false, error: `No matching option for: ${selectionText}` };
+		}
+
+		element.value = option.value;
+		element.dispatchEvent(new Event('input', { bubbles: true }));
+		element.dispatchEvent(new Event('change', { bubbles: true }));
+		return { success: true };
+	}
+
+	// Select2 / JS dropdown (e.g. role="button" + aria-haspopup or select2-focusser)
+	if (getSelect2Container(element)) {
+		return selectFromSelect2(element, selectionText);
+	}
+
+	const isAriaDropdown = element.getAttribute?.('aria-haspopup') === 'true' || (element.getAttribute?.('role') || '').toLowerCase() === 'button';
+	if (isAriaDropdown) {
+		return selectFromAriaDropdown(element, selectionText);
+	}
+
+	return { success: false, error: 'Target is not a <select> or supported dropdown' };
 }
 
 /**
@@ -142,7 +419,7 @@ export async function performActionOnElement(payload) {
 				await typeSmoothly(targetElement, value);
 				break;
 			case "selectByText": {
-				const result = selectByText(targetElement, value);
+				const result = await selectByText(targetElement, value);
 				if (!result.success) return result;
 				break;
 			}

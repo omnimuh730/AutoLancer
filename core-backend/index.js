@@ -8,6 +8,9 @@ const fs = require('fs');
 const path = require('path');
 
 const { analyzeData } = require('./core/analyze');
+const { identifyFieldIntent } = require('./core/staticfieldDetector');
+const { getProfileValue } = require('./core/getFunctionCalling');
+const { generateDynamicAnswer } = require('./core/aiService');
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -127,8 +130,35 @@ app.post('/qa', async (req, res) => {
 	}
 });
 
+// POST /autofill-field { context, jobDescription? }
+app.post('/autofill-field', async (req, res) => {
+	try {
+		const context = req.body?.context || '';
+		const jobDescription = req.body?.jobDescription || '';
+
+		if (!context || typeof context !== 'string') {
+			return res.status(400).json({ error: 'Missing context in request body' });
+		}
+
+		const normalizedContext = context.toLowerCase();
+		const intent = identifyFieldIntent(normalizedContext);
+
+		if (intent?.isStatic && intent.field) {
+			const value = getProfileValue(intent.field) || '';
+			return res.json({ mode: 'static', field: intent.field, value });
+		}
+
+		const ai = await generateDynamicAnswer(context, jobDescription);
+		return res.json({ mode: 'ai', value: ai.answer, usage: ai.usage || null });
+	} catch (e) {
+		console.error('Error generating autofill answer', e);
+		return res.status(500).json({ error: 'Failed to generate autofill answer' });
+	}
+});
+
 app.post('/analyze', async (req, res) => {
 	const payload = req.body.userInput || null;
+	const jobDescription = req.body?.jobDescription || '';
 
 	if (!payload) {
 		return res.status(400).json({ error: 'Missing userInput in request body' });
@@ -146,7 +176,7 @@ app.post('/analyze', async (req, res) => {
 
 	// --- 2. DEFINE WORKER ---
 	const worker = async (component) => {
-		const result = await analyzeData(component);
+		const result = await analyzeData(component, { jobDescription });
 
 		// Accumulate cost metrics safely
 		if (result.aiUsage) {

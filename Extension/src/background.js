@@ -29,16 +29,9 @@ async function ensureContentScriptInjected(tabId) {
 				const ATTR = 'data-autolancer-content-script-injected';
 				const root = document.documentElement || document.head || document.body;
 				if (!root) return false;
-				if (root.hasAttribute(ATTR) || window.contentScriptInjected) {
-					return false;
-				}
-				try {
-					root.setAttribute(ATTR, 'true');
-				} catch {
-					// Best effort only; we still proceed with injection.
-				}
-				window.contentScriptInjected = true;
-				return true;
+				// Only *check* if injected. Do not set any flags here because the content script
+				// uses the same guards and would skip initialization if we pre-set them.
+				return !(root.hasAttribute(ATTR) || window.contentScriptInjected);
 			},
 		});
 
@@ -355,6 +348,19 @@ function handleJobBidMessage(message) {
 }
 
 loadJobBidStore();
+
+// Persist the backend base URL from build-time env for content scripts (fallback when Agent tab isn't opened).
+try {
+	const envBaseUrl = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_SPIRIT_API_URL)
+		? import.meta.env.VITE_SPIRIT_API_URL
+		: '';
+	if (envBaseUrl && chrome?.storage?.local) {
+		chrome.storage.local.set({ spiritApiBaseUrl: envBaseUrl });
+	}
+} catch (e) {
+	// Best effort only.
+	console.error('Failed to persist Spirit API base URL from env', e);
+}
 
 // Messages coming from content scripts that should be relayed to the extension UI
 // Listen for messages from the UI and forward them to the content script or to backend

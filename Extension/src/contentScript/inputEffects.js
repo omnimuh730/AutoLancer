@@ -1,5 +1,7 @@
 import { AUTOLANCER_HIGHLIGHT_CLASSES, ensureAgentStyles } from './agentStyles';
 
+/* global chrome */
+
 // STRICTER SELECTOR: Explicitly excludes buttons, checkboxes, radios, range, etc.
 const INPUT_SELECTOR = `
 	textarea:not([disabled]):not([readonly]),
@@ -8,12 +10,16 @@ const INPUT_SELECTOR = `
 
 // Allowed types for the logic check
 const TEXT_INPUT_TYPES = new Set(['text', 'search', 'email', 'url', 'password', 'number', 'tel']);
-const DEFAULT_AUTOFILL_TEXT = "Hello! I am your AI agent. I can fill this form for you automatically.";
+const DEFAULT_AUTOFILL_FALLBACK_TEXT = "Hello! I am your AI agent. I can fill this form for you automatically.";
 const AUTOFILL_MIN_DELAY = 10;
 const AUTOFILL_MAX_DELAY = 40;
 
 const CURSOR_LOGO_SRC = 'https://www.svgrepo.com/show/306500/openai.svg';
 const CURSOR_LOGO_ALT = 'Autolancer bot';
+
+const JOB_DESCRIPTION_STORAGE_KEY = 'autolancerJobDescription';
+const API_BASE_URL_STORAGE_KEY = 'spiritApiBaseUrl';
+const DEFAULT_API_BASE_URL = 'http://localhost:3001';
 
 const controllers = new Map();
 let mutationObserver = null;
@@ -25,6 +31,102 @@ function wait(ms) {
 
 function randomBetween(min, max) {
 	return Math.random() * (max - min) + min;
+}
+
+function normalizeWhitespace(text) {
+	return (text == null ? '' : String(text)).replace(/\s+/g, ' ').trim();
+}
+
+function clamp(text, max = 500) {
+	const value = normalizeWhitespace(text);
+	if (value.length <= max) return value;
+	return `${value.slice(0, max)}…`;
+}
+
+function getLabelTextForInput(input) {
+	if (!input) return '';
+	const id = input.getAttribute('id');
+	if (id) {
+		const label = document.querySelector(`label[for="${CSS.escape(id)}"]`);
+		if (label) return normalizeWhitespace(label.innerText || label.textContent || '');
+	}
+	const closestLabel = input.closest('label');
+	if (closestLabel) return normalizeWhitespace(closestLabel.innerText || closestLabel.textContent || '');
+
+	const ariaLabelledby = input.getAttribute('aria-labelledby');
+	if (ariaLabelledby) {
+		const ids = ariaLabelledby.split(/\s+/).filter(Boolean);
+		const parts = ids.map((lid) => {
+			const el = document.getElementById(lid);
+			return el ? normalizeWhitespace(el.innerText || el.textContent || '') : '';
+		}).filter(Boolean);
+		if (parts.length) return parts.join(' ');
+	}
+
+	return '';
+}
+
+function buildFieldContext(input) {
+	if (!input) return '';
+	const label = getLabelTextForInput(input);
+	const placeholder = input.getAttribute('placeholder') || '';
+	const ariaLabel = input.getAttribute('aria-label') || '';
+	const name = input.getAttribute('name') || '';
+	const id = input.getAttribute('id') || '';
+	const type = (input.getAttribute('type') || input.type || '').toLowerCase();
+
+	// Try to capture a small relevant surrounding text block (but keep it short).
+	const container = input.closest('fieldset, section, article, li, .field, .form-group, .formField, .input-group, div') || input.parentElement;
+	const nearbyText = container ? clamp(container.innerText || container.textContent || '', 700) : '';
+
+	return clamp([
+		label,
+		ariaLabel,
+		placeholder,
+		name,
+		id,
+		type,
+		nearbyText
+	].filter(Boolean).join(' '), 900);
+}
+
+async function readJobDescription() {
+	try {
+		if (typeof chrome === 'undefined' || !chrome.storage?.local) return '';
+		const result = await chrome.storage.local.get(JOB_DESCRIPTION_STORAGE_KEY);
+		return typeof result?.[JOB_DESCRIPTION_STORAGE_KEY] === 'string' ? result[JOB_DESCRIPTION_STORAGE_KEY] : '';
+	} catch {
+		return '';
+	}
+}
+
+async function readApiBaseUrl() {
+	try {
+		if (typeof chrome === 'undefined' || !chrome.storage?.local) return DEFAULT_API_BASE_URL;
+		const result = await chrome.storage.local.get(API_BASE_URL_STORAGE_KEY);
+		const value = result?.[API_BASE_URL_STORAGE_KEY];
+		return typeof value === 'string' && value.trim() ? value.trim() : DEFAULT_API_BASE_URL;
+	} catch {
+		return DEFAULT_API_BASE_URL;
+	}
+}
+
+async function fetchAutofillAnswer(context, jobDescription) {
+	const apiBaseUrl = await readApiBaseUrl();
+	const response = await fetch(`${apiBaseUrl.replace(/\/+$/, '')}/autofill-field`, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ context, jobDescription })
+	});
+
+	if (!response.ok) {
+		const text = await response.text().catch(() => '');
+		throw new Error(`Autofill request failed (${response.status}): ${text || response.statusText}`);
+	}
+
+	const data = await response.json();
+	const value = data?.value;
+	return typeof value === 'string' ? value : '';
 }
 
 const SELECTION_UNSUPPORTED_TYPES = new Set([
@@ -243,7 +345,16 @@ class AutolancerInputController {
 		this.isGenerating = true;
 		const token = Symbol('autolancer-generation');
 		this.generationToken = token;
-		const textToType = this.input.dataset.autolancerDemoText || DEFAULT_AUTOFILL_TEXT;
+		let textToType = '';
+
+		try {
+			const context = buildFieldContext(this.input);
+			const jobDescription = await readJobDescription();
+			textToType = await fetchAutofillAnswer(context, jobDescription);
+		} catch (error) {
+			console.error('Autofill with AI failed:', error);
+			textToType = this.input.dataset.autolancerDemoText || DEFAULT_AUTOFILL_FALLBACK_TEXT;
+		}
 
 		this.input.focus();
 		this.input.value = '';
@@ -275,7 +386,7 @@ class AutolancerInputController {
 			if (supportsSelectionRange(this.input)) {
 				try {
 					this.input.setSelectionRange(length, length);
-				} catch (err) {
+				} catch {
 					// Ignore specific browser errors for inputs that reject selection setting
 				}
 			}
@@ -325,7 +436,7 @@ class AutolancerInputController {
 			if (typeof this.input.selectionStart === 'number') {
 				selectionStart = this.input.selectionStart;
 			}
-		} catch (e) { /* ignore */ }
+		} catch { /* ignore */ }
 
 		const value = this.input.value || '';
 		const textBeforeCursor = value.substring(0, selectionStart);

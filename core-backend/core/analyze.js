@@ -6,10 +6,11 @@ const { classifyInteractionType } = require('./elementClassifier');
 const { getProfileValue } = require('./getFunctionCalling');
 const { generateDynamicAnswer, generateSelectionAnswer } = require('./aiService'); // <--- Import New Function
 
-async function analyzeData(data) {
+async function analyzeData(data, options = {}) {
 	const children = data.Children || [];
 	const parent = data.Parent;
 	let aiUsageStats = null;
+	const jobDescription = options?.jobDescription || '';
 
 	// 1. Submit Detection
 	if (children.length === 1 && matchesSubmitKeyword(children[0])) {
@@ -89,7 +90,7 @@ async function analyzeData(data) {
 		if (interactionType === 'TYPING') {
 
 			// 1. Call AI Service
-			const aiResponse = await generateDynamicAnswer(context);
+			const aiResponse = await generateDynamicAnswer(context, jobDescription);
 			aiUsageStats = aiResponse.usage;
 
 			// 2. Find the input element
@@ -113,7 +114,7 @@ async function analyzeData(data) {
 
 			if (optionsList.length > 0) {
 				// 2. Call AI Selection Service
-				const aiResponse = await generateSelectionAnswer(context, optionsList);
+				const aiResponse = await generateSelectionAnswer(context, optionsList, jobDescription);
 				aiUsageStats = aiResponse.usage;
 
 				// 3. Construct Action based on Interaction Type

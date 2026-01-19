@@ -1,4 +1,4 @@
-import { Button, Paper, Box, Stack, Typography, Divider, TextField, FormControl, InputLabel, Select, MenuItem } from '@mui/material';
+import { Button, Paper, Box, Stack, Typography, TextField } from '@mui/material';
 import ResponseTreeView from './reference/ResponseTreeView.jsx';
 
 export function AgentUI({
@@ -8,6 +8,8 @@ export function AgentUI({
 	loading,
 	executing,
 	error,
+	jobDescription,
+	onJobDescriptionChange,
 	componentsData,
 	analysisData,
 	hasExecutableActions
@@ -17,6 +19,15 @@ export function AgentUI({
 			<Paper elevation={2} sx={{ p: 2, mb: 2 }}>
 				<Stack spacing={2}>
 					<Typography variant="h5">Agent</Typography>
+					<TextField
+						label="Job Description (optional)"
+						placeholder="Paste the job description here to improve AI answers"
+						value={jobDescription}
+						onChange={(e) => onJobDescriptionChange?.(e.target.value)}
+						multiline
+						minRows={4}
+						fullWidth
+					/>
 					<Box sx={{ display: 'flex', gap: 2 }}>
 						<Button variant="contained" color="primary" onClick={onAnalyze} fullWidth>
 							Highlight & Collect
@@ -29,7 +40,7 @@ export function AgentUI({
 						</Button>
 					</Box>
 					{loading && <Typography variant="body2">Analyzing with AI...</Typography>}
-					{executing && <Typography variant="body2">Executing AI suggestions...</Typography>}
+					{executing && <Typography variant="body2">Filling text fields...</Typography>}
 					{error && (
 						<Typography variant="body2" color="error">
 							{String(error)}

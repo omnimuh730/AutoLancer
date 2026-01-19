@@ -5,6 +5,8 @@ import { AgentUI } from './UI';
 import { highlightInteractables, clearHighlights, executeActionsSequence } from '../../contentScript/interactionBridge';
 import { useAgentState } from './hooks';
 
+/* global chrome */
+
 function AgentPage() {
 	const { addListener, removeListener } = useRuntime();
 	const [componentsData, setComponentsData] = useState(null);
@@ -15,10 +17,20 @@ function AgentPage() {
 	const runIdRef = useRef(null);
 	const lastHandledRunIdRef = useRef(null);
 
-	const { executableActions, setExecutableActions } = useAgentState();
+	const { executableActions, setExecutableActions, jobDescription, setJobDescription } = useAgentState();
 
 	const spiritApi = useApi(import.meta.env.VITE_SPIRIT_API_URL);
 	const { post: spiritPost, baseUrl: spiritBaseUrl } = spiritApi;
+
+	useEffect(() => {
+		try {
+			if (typeof chrome !== 'undefined' && chrome.storage?.local && spiritBaseUrl) {
+				chrome.storage.local.set({ spiritApiBaseUrl: spiritBaseUrl });
+			}
+		} catch (e) {
+			console.error('Failed to persist Spirit API base URL:', e);
+		}
+	}, [spiritBaseUrl]);
 
 	const deriveSelectorFromSerializedElement = useCallback((serializedElement) => {
 		const tag = serializedElement?.tag;
@@ -57,15 +69,6 @@ function AgentPage() {
 		if (command === 'TYPING') {
 			return children.find((c) => c?.tag === 'input' || c?.tag === 'textarea') || null;
 		}
-		if (command === 'SELECT_OPTION' || command === 'DROPDOWN_SELECT') {
-			return children.find((c) => c?.tag === 'select') || null;
-		}
-		if (command === 'CLICK') {
-			return children.find((c) => c?.tag === 'button' || c?.tag === 'a' || (c?.tag === 'input' && (c?.properties?.type === 'button' || c?.properties?.type === 'submit'))) || null;
-		}
-		if (command === 'UPLOAD' || command === 'FILEUPLOAD') {
-			return children.find((c) => c?.tag === 'input' && c?.properties?.type === 'file') || null;
-		}
 
 		return null;
 	}, []);
@@ -88,6 +91,7 @@ function AgentPage() {
 		try {
 			const body = {
 				userInput: JSON.stringify(payload, null, 2),
+				jobDescription: (jobDescription || '').trim(),
 			};
 			const result = await spiritPost('/analyze', body);
 			setAnalysisData(result || null);
@@ -104,28 +108,35 @@ function AgentPage() {
 					const suggestion = item?.action_suggestion || item?.insights?.action_suggestion || null;
 					const command = suggestion?.command || null;
 					if (!command) continue;
-					if (command === 'ERROR' || command === 'MANUAL_INTERVENTION') continue;
+					if (command !== 'TYPING') continue; // text-only autofill
 
 					const childIndex = suggestion?.payload?.childIndex;
 					const targetSerializedElement = pickChildFromGroup(group, command, childIndex);
 					if (!targetSerializedElement) continue;
 
+					const props = targetSerializedElement?.properties || {};
+					const tag = targetSerializedElement?.tag;
+					if (!(tag === 'input' || tag === 'textarea')) continue;
+					if (props.disabled !== undefined) continue;
+					if (props.readonly !== undefined) continue;
+
+					const inputType = String(props.type || '').toLowerCase();
+					if (tag === 'input' && ['hidden', 'file', 'checkbox', 'radio', 'button', 'submit', 'reset'].includes(inputType)) {
+						continue;
+					}
+
+					// Ignore JS-driven dropdown widgets that look like inputs (select2, aria button).
+					const classList = String(props.class || '').split(/\s+/).filter(Boolean);
+					const isSelect2Like = classList.includes('select2-focusser') || String(props.id || '').startsWith('s2id_');
+					const isAriaDropdown = props['aria-haspopup'] === 'true' || String(props.role || '').toLowerCase() === 'button';
+					if (isSelect2Like || isAriaDropdown) continue;
+
 					const selector = deriveSelectorFromSerializedElement(targetSerializedElement);
 					if (!selector?.pattern) continue;
 
-					if (command === 'TYPING') {
-						const value = suggestion?.payload?.value;
-						if (!value) continue;
-						actions.push({ ...selector, order: 0, action: 'typeSmoothly', value });
-					} else if (command === 'CLICK') {
-						actions.push({ ...selector, order: 0, action: 'click' });
-					} else if (command === 'SELECT_OPTION' || command === 'DROPDOWN_SELECT') {
-						const selectionValue = suggestion?.payload?.selectionValue ?? suggestion?.payload?.value;
-						if (!selectionValue) continue;
-						actions.push({ ...selector, order: 0, action: 'selectByText', value: selectionValue });
-					} else if (command === 'UPLOAD' || command === 'FILEUPLOAD') {
-						actions.push({ ...selector, order: 0, action: 'click' });
-					}
+					const value = suggestion?.payload?.value;
+					if (!value) continue;
+					actions.push({ ...selector, order: 0, action: 'typeSmoothly', value });
 				}
 				setExecutableActions(actions);
 			}
@@ -135,8 +146,21 @@ function AgentPage() {
 		} finally {
 			setLoading(false);
 		}
-	}, [deriveSelectorFromSerializedElement, pickChildFromGroup, spiritBaseUrl, spiritPost, setExecutableActions]);
+	}, [deriveSelectorFromSerializedElement, pickChildFromGroup, jobDescription, spiritBaseUrl, spiritPost, setExecutableActions]);
 
+
+	useEffect(() => {
+		try {
+			if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+				chrome.storage.local.get('autolancerJobDescription', (result) => {
+					const value = result?.autolancerJobDescription;
+					if (typeof value === 'string') setJobDescription(value);
+				});
+			}
+		} catch (e) {
+			console.error('Failed to load job description from storage:', e);
+		}
+	}, [setJobDescription]);
 
 	useEffect(() => {
 		const listener = (message) => {
@@ -159,6 +183,17 @@ function AgentPage() {
 		addListener(listener);
 		return () => removeListener(listener);
 	}, [addListener, removeListener, analyzeComponents]);
+
+	const handleJobDescriptionChange = useCallback((value) => {
+		setJobDescription(value);
+		try {
+			if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+				chrome.storage.local.set({ autolancerJobDescription: value });
+			}
+		} catch (e) {
+			console.error('Failed to persist job description:', e);
+		}
+	}, [setJobDescription]);
 
 	const handleAnalyze = () => {
 		try {
@@ -202,6 +237,8 @@ function AgentPage() {
 			loading={loading}
 			executing={executing}
 			error={error}
+			jobDescription={jobDescription}
+			onJobDescriptionChange={handleJobDescriptionChange}
 			componentsData={componentsData}
 			analysisData={analysisData}
 			hasExecutableActions={hasExecutableActions}

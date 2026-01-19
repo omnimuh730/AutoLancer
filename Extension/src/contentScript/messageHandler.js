@@ -2,8 +2,6 @@ import { findLowestCommonAncestor, findElements, waitForElements } from "./eleme
 import { isVisible } from "./domUtils";
 import { clearHighlights, highlightByPattern as doHighlightByPattern } from "./highlighter";
 import { performActionOnElement } from "./actionExecutor";
-import { ensureAgentStyles } from "./agentStyles";
-import { enableAutolancerInputEffects } from "./inputEffects";
 import { matchesSubmitKeyword } from "./submitDetector";
 
 /* global chrome */
@@ -140,30 +138,9 @@ function ensureContextualParents(parentChildMap) {
 	return contextualMap;
 }
 
-function applyAutolancerHighlight(element, variant = 'child') {
+function markDetected(element, variant = 'child') {
 	if (!element || !(element instanceof Element)) return;
-	ensureAgentStyles();
-	const normalizedVariant = variant || 'child';
-	const previousVariant = element.getAttribute('data-autolancer-highlight');
-	element.classList.add('autolancer-highlight-base');
-	if (previousVariant && previousVariant !== normalizedVariant) {
-		element.classList.remove(`autolancer-highlight-${previousVariant}`);
-	}
-	element.classList.add(`autolancer-highlight-${normalizedVariant}`);
-	element.setAttribute('data-autolancer-highlight', normalizedVariant);
-
-	const computed = window.getComputedStyle(element);
-	if (computed.position === 'static' && !element.hasAttribute('data-autolancer-original-position')) {
-		element.setAttribute('data-autolancer-original-position', element.style.position || '');
-		element.style.position = 'relative';
-	}
-
-	const borderRadius = (computed.borderRadius || '').replace(/\s+/g, ' ').trim();
-	if (borderRadius && borderRadius !== '0px' && borderRadius !== '0px 0px 0px 0px') {
-		element.style.setProperty('--autolancer-border-radius', borderRadius);
-	} else if (!element.style.getPropertyValue('--autolancer-border-radius')) {
-		element.style.setProperty('--autolancer-border-radius', '12px');
-	}
+	element.setAttribute('data-autolancer-highlight', variant || 'child');
 }
 
 
@@ -211,9 +188,8 @@ function groupAndHighlightComponents() {
 	// --- PHASE 3: MODIFIED to use the new serializer ---
 	const resultData = [];
 	for (const [parent, children] of contextualMap.entries()) {
-		if (!parent.hasAttribute('data-highlighter-outline')) {
-			applyAutolancerHighlight(parent, 'parent');
-		}
+		// No visual border/highlight effects; only mark detection attributes.
+		if (!parent.hasAttribute('data-highlighter-outline')) markDetected(parent, 'parent');
 		parent.setAttribute('data-highlighter-parent', 'true');
 
 		// *** THIS IS THE CHANGED PART ***
@@ -339,6 +315,38 @@ export const messageHandler = (request, sender, sendResponse) => {
 					break;
 				}
 
+				case 'executeActionsParallel': {
+					const runId = request?.payload?.runId || null;
+					const actions = Array.isArray(request?.payload?.actions) ? request.payload.actions : [];
+
+					try {
+						const results = await Promise.all(actions.map(async (actionPayload, index) => {
+							const result = await performActionOnElement(actionPayload);
+							return { index, ...result };
+						}));
+
+						try {
+							chrome.runtime.sendMessage({
+								action: 'executeActionsParallelResult',
+								payload: { runId, success: true, results }
+							});
+						} catch (err) {
+							console.error('Failed to send executeActionsParallelResult message:', err);
+						}
+					} catch (err) {
+						console.error('executeActionsParallel error:', err);
+						try {
+							chrome.runtime.sendMessage({
+								action: 'executeActionsParallelResult',
+								payload: { runId, success: false, error: String(err && err.message || err) }
+							});
+						} catch (e) {
+							console.error('Failed to send executeActionsParallelResult error message:', e);
+						}
+					}
+					break;
+				}
+
 				case 'highlightInteractables': {
 					try {
 						clearHighlights();
@@ -375,13 +383,12 @@ export const messageHandler = (request, sender, sendResponse) => {
 								targetElement.setAttribute('data-highlighter-original-outline', originalOutline || '');
 								targetElement.setAttribute('data-highlighter-outline', 'true');
 								const variant = matchesSubmitKeyword(targetElement) ? 'submit' : 'child';
-								applyAutolancerHighlight(targetElement, variant);
+								markDetected(targetElement, variant);
 							} catch (e) { console.error('applyHighlight error for element:', el, e); }
 						}
 
 						const componentData = groupAndHighlightComponents();
 						const runId = request?.payload?.runId || null;
-						enableAutolancerInputEffects();
 						console.log('Detected Component Structure:', componentData);
 
 						// Send the structured result back to the extension UI via background

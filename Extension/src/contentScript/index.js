@@ -1,6 +1,5 @@
 import { messageHandler } from './messageHandler';
 import { initJobBidMonitor } from './jobBidMonitor';
-import { enableAutolancerInputEffects } from './inputEffects';
 
 /* global chrome */
 
@@ -12,7 +11,7 @@ const guardRoot = document?.documentElement;
 if (!guardRoot?.hasAttribute(INJECT_FLAG_ATTR)) {
 	try {
 		guardRoot?.setAttribute(INJECT_FLAG_ATTR, 'true');
-	} catch (e) {
+	} catch {
 		// Best-effort only; still proceed with the previous window-based guard.
 	}
 
@@ -37,8 +36,8 @@ if (!guardRoot?.hasAttribute(INJECT_FLAG_ATTR)) {
 	}
 
 	try {
-		enableAutolancerInputEffects();
+		// Intentionally no input effects/cursor injection.
 	} catch (e) {
-		console.error('Failed to enable input effects', e);
+		console.error('Input effects disabled', e);
 	}
 }

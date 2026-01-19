@@ -65,6 +65,18 @@ export const executeActionsSequence = (actions, runId) => {
 	});
 };
 
+export const executeActionsParallel = (actions, runId) => {
+	const payload = {
+		runId: runId || null,
+		actions: Array.isArray(actions) ? actions : [],
+	};
+
+	chrome.runtime.sendMessage({
+		action: "executeActionsParallel",
+		payload,
+	});
+};
+
 export const highlightInteractables = (runId) => {
 	chrome.runtime.sendMessage({
 		action: 'highlightInteractables',

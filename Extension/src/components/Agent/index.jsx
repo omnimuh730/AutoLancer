@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRuntime } from '../../api/runtimeContext';
 import useApi from '../../api/useApi';
 import { AgentUI } from './UI';
-import { highlightInteractables, clearHighlights, executeActionsSequence } from '../../contentScript/interactionBridge';
+import { highlightInteractables, clearHighlights, executeActionsParallel } from '../../contentScript/interactionBridge';
 import { useAgentState } from './hooks';
 
 /* global chrome */
@@ -136,7 +136,7 @@ function AgentPage() {
 
 					const value = suggestion?.payload?.value;
 					if (!value) continue;
-					actions.push({ ...selector, order: 0, action: 'typeSmoothly', value });
+					actions.push({ ...selector, order: 0, action: 'fill', value });
 				}
 				setExecutableActions(actions);
 			}
@@ -174,7 +174,7 @@ function AgentPage() {
 				setComponentsData(message.payload);
 				// Kick off backend analysis
 				analyzeComponents(message.payload);
-			} else if (message?.action === 'executeActionsSequenceResult') {
+			} else if (message?.action === 'executeActionsParallelResult') {
 				const runId = message?.payload?.runId || null;
 				const isCurrentRun = !runId || runId === runIdRef.current;
 				if (isCurrentRun) setExecuting(false);
@@ -224,7 +224,7 @@ function AgentPage() {
 
 		setExecuting(true);
 		console.log('Executing actions:', executableActions);
-		executeActionsSequence(executableActions, runIdRef.current);
+		executeActionsParallel(executableActions, runIdRef.current);
 	};
 
 	const hasExecutableActions = executableActions.length > 0;

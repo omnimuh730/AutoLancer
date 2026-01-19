@@ -12,7 +12,8 @@ const actionsToForward = [
 	"collectDomHints",
 	"clearHighlight",
 	"executeAction",
-	"executeActionsSequence"
+	"executeActionsSequence",
+	"executeActionsParallel"
 ];
 
 const JOB_BID_STORAGE_KEY = 'jobBidStore';

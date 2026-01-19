@@ -19,7 +19,6 @@ const CURSOR_LOGO_ALT = 'Autolancer bot';
 
 const JOB_DESCRIPTION_STORAGE_KEY = 'autolancerJobDescription';
 const API_BASE_URL_STORAGE_KEY = 'spiritApiBaseUrl';
-const DEFAULT_API_BASE_URL = 'http://localhost:3001';
 
 const controllers = new Map();
 let mutationObserver = null;
@@ -100,33 +99,35 @@ async function readJobDescription() {
 	}
 }
 
-async function readApiBaseUrl() {
-	try {
-		if (typeof chrome === 'undefined' || !chrome.storage?.local) return DEFAULT_API_BASE_URL;
-		const result = await chrome.storage.local.get(API_BASE_URL_STORAGE_KEY);
-		const value = result?.[API_BASE_URL_STORAGE_KEY];
-		return typeof value === 'string' && value.trim() ? value.trim() : DEFAULT_API_BASE_URL;
-	} catch {
-		return DEFAULT_API_BASE_URL;
-	}
-}
-
 async function fetchAutofillAnswer(context, jobDescription) {
-	const apiBaseUrl = await readApiBaseUrl();
-	const response = await fetch(`${apiBaseUrl.replace(/\/+$/, '')}/autofill-field`, {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ context, jobDescription })
+	return new Promise((resolve, reject) => {
+		if (typeof chrome === 'undefined' || !chrome.runtime?.sendMessage) {
+			reject(new Error('chrome.runtime.sendMessage not available'));
+			return;
+		}
+
+		const timeout = setTimeout(() => {
+			reject(new Error('Autofill request timed out'));
+		}, 15000);
+
+		try {
+			chrome.runtime.sendMessage(
+				{ action: 'autofillField', payload: { context, jobDescription } },
+				(response) => {
+					clearTimeout(timeout);
+					if (!response?.success) {
+						reject(new Error(response?.error || 'Autofill request failed'));
+						return;
+					}
+					const value = response?.data?.value;
+					resolve(typeof value === 'string' ? value : '');
+				}
+			);
+		} catch (e) {
+			clearTimeout(timeout);
+			reject(e);
+		}
 	});
-
-	if (!response.ok) {
-		const text = await response.text().catch(() => '');
-		throw new Error(`Autofill request failed (${response.status}): ${text || response.statusText}`);
-	}
-
-	const data = await response.json();
-	const value = data?.value;
-	return typeof value === 'string' ? value : '';
 }
 
 const SELECTION_UNSUPPORTED_TYPES = new Set([
@@ -347,7 +348,13 @@ class AutolancerInputController {
 		this.generationToken = token;
 		let textToType = '';
 
+		// Start immediately (same feel as the previous demo autofill): clear + cursor update first.
 		try {
+			this.input.focus();
+			this.input.value = '';
+			this.dispatchInputEvent();
+			this.updateCursor();
+
 			const context = buildFieldContext(this.input);
 			const jobDescription = await readJobDescription();
 			textToType = await fetchAutofillAnswer(context, jobDescription);
@@ -355,11 +362,6 @@ class AutolancerInputController {
 			console.error('Autofill with AI failed:', error);
 			textToType = this.input.dataset.autolancerDemoText || DEFAULT_AUTOFILL_FALLBACK_TEXT;
 		}
-
-		this.input.focus();
-		this.input.value = '';
-		this.dispatchInputEvent();
-		this.updateCursor();
 
 		try {
 			await this.typeTextSequence(textToType, token);

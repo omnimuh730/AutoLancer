@@ -1,25 +1,25 @@
 {
 	"profiles": [
 		{
-			"identifier": "Bryan-Reyes",
+			"identifier": "Terry-Huang",
 			"personal": {
-				"name": "Bryan Reyes",
-				"birthday": "1994-04-03",
-				"location": "Waco, TX",
-				"address": "1808 N 12th St, Waco, TX",
-				"zip": "76707"
+				"name": "Terry Huang",
+				"birthday": "1990-11-17",
+				"location": "Gladewater, TX",
+				"address": "400 Allison St, Gladewater, TX",
+				"zip": "75647"
 			},
 			"contact": {
-				"email": "bryan.reyes.octo@gmail.com",
-				"phone": "(254) 279-9002",
-				"linkedin": "https://www.linkedin.com/in/bryan-reyes-28213499/",
-				"github": "https://github.com/scarlet-mormon"
+				"email": "terry.huang.work@gmail.com",
+				"phone": "(254) 788-6685",
+				"linkedin": "https://www.linkedin.com/in/terry-huang-ab002047",
+				"github": "https://github.com/terry-huang-nightowl"
 			},
 			"education": {
 				"degree": "Bachelor of Science in Computer Science",
-				"university": "Cornell University",
-				"startDate": "2012-08-21",
-				"endDate": "2016-05-29"
+				"university": "Texas A&M University",
+				"startDate": "Aug 2009",
+				"endDate": "May 2014"
 			},
 			"eeo": {
 				"race": "East Asian",
@@ -33,50 +33,51 @@
 			"career": [
 				{
 					"title": "Senior Software Engineer",
-					"company": "Walmart",
-					"startDate": "2023-03-01",
+					"company": "Airbnb",
+					"startDate": "2022-04-01",
 					"endDate": "Present"
 				},
 				{
 					"title": "Software Engineer",
-					"company": "Goji Labs",
-					"startDate": "2020-06-01",
-					"endDate": "2023-01-31"
+					"company": "Amazon",
+					"startDate": "2018-11-01",
+					"endDate": "2022-04-01"
 				},
 				{
 					"title": "Full Stack Developer",
-					"company": "Miles IT",
-					"startDate": "2016-09-01",
-					"endDate": "2020-05-31"
+					"company": "Tango Health, Inc.",
+					"startDate": "2016-05-01",
+					"endDate": "2018-11-01"
 				}
 			],
 			"preference": {
 				"desiredJobTitle": "Software Engineer",
 				"desiredLocation": "Only Remote",
 				"ableToRelocate": "No",
-				"desiredSalary": "160000"
+				"desiredSalary": "140000"
 			}
 		},
 		{
-			"identifier": "Terry Huang",
+			"identifier": "Bi-Ge",
 			"personal": {
-				"name": "Terry Huang",
-				"birthday": "1994-04-03",
-				"location": "Waco, TX",
-				"address": "1808 N 12th St, Waco, TX",
-				"zip": "76707"
+				"name": "Bi Ge",
+				"birthday": "1992-07-27",
+				"location": "Fresno, CA",
+				"address": "1530 Fulton St, Fresno, CA",
+				"zip": "93721"
 			},
 			"contact": {
-				"email": "bryan.reyes.octo@gmail.com",
-				"phone": "(254) 279-9002",
-				"linkedin": "https://www.linkedin.com/in/bryan-reyes-28213499/",
-				"github": "https://github.com/scarlet-mormon"
+				"email": "bge2314@gmail.com",
+				"phone": "(442) 302-4588",
+				"linkedin": "https://www.linkedin.com/in/bi-ge-900b89113",
+				"github": "https://github.com/scarlet-mormon",
+				"portfolio": "https://scarlet-mormon.github.io/portfolio"
 			},
 			"education": {
-				"degree": "Bachelor of Science in Computer Science",
-				"university": "Cornell University",
-				"startDate": "2012-08-21",
-				"endDate": "2016-05-29"
+				"degree": "Master of Science in Computer Engineering",
+				"university": "Georgia Institute of Technology",
+				"startDate": "Aug 2014",
+				"endDate": "May 2016"
 			},
 			"eeo": {
 				"race": "East Asian",
@@ -90,21 +91,21 @@
 			"career": [
 				{
 					"title": "Senior Software Engineer",
-					"company": "Walmart",
-					"startDate": "2023-03-01",
+					"company": "Meta",
+					"startDate": "2024-11-01",
 					"endDate": "Present"
 				},
 				{
 					"title": "Software Engineer",
-					"company": "Goji Labs",
-					"startDate": "2020-06-01",
-					"endDate": "2023-01-31"
+					"company": "Google",
+					"startDate": "Sep 2018",
+					"endDate": "Nov 2024"
 				},
 				{
 					"title": "Full Stack Developer",
-					"company": "Miles IT",
-					"startDate": "2016-09-01",
-					"endDate": "2020-05-31"
+					"company": "Amazon",
+					"startDate": "Jul 2016",
+					"endDate": "Aug 2018"
 				}
 			],
 			"preference": {

@@ -80,6 +80,7 @@ function AgentPage() {
 		const props = serializedElement?.properties || {};
 		if (!tag) return null;
 
+		if (props['data-autolancer-group-id']) return { componentType: tag, propertyName: 'data-autolancer-group-id', pattern: props['data-autolancer-group-id'] };
 		if (props.id) return { componentType: tag, propertyName: 'id', pattern: props.id };
 		if (props.name) return { componentType: tag, propertyName: 'name', pattern: props.name };
 
@@ -111,6 +112,9 @@ function AgentPage() {
 
 		if (command === 'TYPING') {
 			return children.find((c) => c?.tag === 'input' || c?.tag === 'textarea') || null;
+		}
+		if (command === 'CLICK') {
+			return children.find((c) => c?.tag === 'button' || c?.tag === 'a' || c?.tag === 'label' || (c?.tag === 'input' && ['radio', 'checkbox', 'button', 'submit'].includes(String(c?.properties?.type || '').toLowerCase()))) || null;
 		}
 
 		return null;
@@ -152,7 +156,12 @@ function AgentPage() {
 					const suggestion = item?.action_suggestion || item?.insights?.action_suggestion || null;
 					const command = suggestion?.command || null;
 					if (!command) continue;
-					if (command !== 'TYPING') continue; // text-only autofill
+					if (command !== 'TYPING' && command !== 'CLICK') continue;
+					// Explicitly ignore dropdowns/selects/uploads for now.
+					if (command === 'SELECT_OPTION' || command === 'DROPDOWN_SELECT' || command === 'UPLOAD' || command === 'FILEUPLOAD') continue;
+
+					const scopeSelector = deriveSelectorFromSerializedElement(group?.Parent);
+					const hasScope = Boolean(scopeSelector?.pattern);
 
 					const childIndex = suggestion?.payload?.childIndex;
 					const targetSerializedElement = pickChildFromGroup(group, command, childIndex);
@@ -160,27 +169,42 @@ function AgentPage() {
 
 					const props = targetSerializedElement?.properties || {};
 					const tag = targetSerializedElement?.tag;
-					if (!(tag === 'input' || tag === 'textarea')) continue;
 					if (props.disabled !== undefined) continue;
 					if (props.readonly !== undefined) continue;
 
 					const inputType = String(props.type || '').toLowerCase();
-					if (tag === 'input' && ['hidden', 'file', 'checkbox', 'radio', 'button', 'submit', 'reset'].includes(inputType)) {
-						continue;
+					if (command === 'TYPING') {
+						if (!(tag === 'input' || tag === 'textarea')) continue;
+						if (tag === 'input' && ['hidden', 'file', 'checkbox', 'radio', 'button', 'submit', 'reset'].includes(inputType)) continue;
+
+						const classList = String(props.class || '').split(/\s+/).filter(Boolean);
+						const isSelect2Like = classList.includes('select2-focusser') || String(props.id || '').startsWith('s2id_');
+						const isAriaDropdown = props['aria-haspopup'] === 'true' || String(props.role || '').toLowerCase() === 'button';
+						if (isSelect2Like || isAriaDropdown) continue;
+
+						const value = suggestion?.payload?.value;
+						if (!value) continue;
+
+						if (hasScope && Number.isFinite(parseInt(childIndex, 10))) {
+							actions.push({ action: 'fillScoped', scope: scopeSelector, childIndex: parseInt(childIndex, 10), value });
+						} else {
+							const selector = deriveSelectorFromSerializedElement(targetSerializedElement);
+							if (!selector?.pattern) continue;
+							actions.push({ ...selector, order: 0, action: 'fill', value });
+						}
+					} else if (command === 'CLICK') {
+						// Avoid auto-submitting even if backend accidentally emits it.
+						const looksLikeSubmit = String(targetSerializedElement?.innerText || '').toLowerCase().includes('submit');
+						if (looksLikeSubmit) continue;
+
+						if (hasScope && Number.isFinite(parseInt(childIndex, 10))) {
+							actions.push({ action: 'clickScoped', scope: scopeSelector, childIndex: parseInt(childIndex, 10) });
+						} else {
+							const selector = deriveSelectorFromSerializedElement(targetSerializedElement);
+							if (!selector?.pattern) continue;
+							actions.push({ ...selector, order: 0, action: 'click' });
+						}
 					}
-
-					// Ignore JS-driven dropdown widgets that look like inputs (select2, aria button).
-					const classList = String(props.class || '').split(/\s+/).filter(Boolean);
-					const isSelect2Like = classList.includes('select2-focusser') || String(props.id || '').startsWith('s2id_');
-					const isAriaDropdown = props['aria-haspopup'] === 'true' || String(props.role || '').toLowerCase() === 'button';
-					if (isSelect2Like || isAriaDropdown) continue;
-
-					const selector = deriveSelectorFromSerializedElement(targetSerializedElement);
-					if (!selector?.pattern) continue;
-
-					const value = suggestion?.payload?.value;
-					if (!value) continue;
-					actions.push({ ...selector, order: 0, action: 'fill', value });
 				}
 				setExecutableActions(actions);
 			}

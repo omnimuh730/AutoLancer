@@ -147,7 +147,7 @@ function markDetected(element, variant = 'child') {
 /**
  * Groups red-highlighted nodes, highlights parents, and returns the structured data.
  */
-function groupAndHighlightComponents() {
+function groupAndHighlightComponents(runId) {
 	// ... PHASE 1 and PHASE 2 remain exactly the same ...
 	const highlightedNodes = document.querySelectorAll('[data-highlighter-outline]');
 	const parentChildMap = new Map();
@@ -191,6 +191,15 @@ function groupAndHighlightComponents() {
 		// No visual border/highlight effects; only mark detection attributes.
 		if (!parent.hasAttribute('data-highlighter-outline')) markDetected(parent, 'parent');
 		parent.setAttribute('data-highlighter-parent', 'true');
+		parent.setAttribute('data-autolancer-group-id', `${runId || 'run'}:${resultData.length}`);
+
+		// Assign stable indices to children so actions can target reliably later.
+		for (let childIndex = 0; childIndex < children.length; childIndex++) {
+			const child = children[childIndex];
+			if (child && child.setAttribute) {
+				child.setAttribute('data-autolancer-child-index', String(childIndex));
+			}
+		}
 
 		// *** THIS IS THE CHANGED PART ***
 		// Instead of outerHTML, we now call serializeElement.
@@ -387,8 +396,8 @@ export const messageHandler = (request, sender, sendResponse) => {
 							} catch (e) { console.error('applyHighlight error for element:', el, e); }
 						}
 
-						const componentData = groupAndHighlightComponents();
 						const runId = request?.payload?.runId || null;
+						const componentData = groupAndHighlightComponents(runId);
 						console.log('Detected Component Structure:', componentData);
 
 						// Send the structured result back to the extension UI via background

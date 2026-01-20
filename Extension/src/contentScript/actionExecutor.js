@@ -376,6 +376,40 @@ export async function selectByText(element, selectionText) {
 	return { success: false, error: 'Target is not a <select> or supported dropdown' };
 }
 
+function getScopedChildren(parentElement) {
+	if (!parentElement) return [];
+	const outlined = Array.from(parentElement.querySelectorAll('[data-highlighter-outline]'));
+	if (outlined.length) return outlined;
+	return Array.from(parentElement.querySelectorAll('input,textarea,button,a[href],[role="button"]'));
+}
+
+async function resolveScopedTarget(payload) {
+	const scope = payload?.scope;
+	if (!scope) return null;
+	const { componentType, propertyName, pattern, order } = scope;
+
+	let parents = findElements(componentType, propertyName, pattern);
+	if (!parents || parents.length === 0) {
+		parents = await waitForElements(componentType, propertyName, pattern, 2000, 100);
+	}
+	if (!parents || parents.length === 0) return null;
+
+	const parentIndex = Number.isFinite(order) ? Math.max(0, parseInt(order, 10)) : 0;
+	const parentElement = parents[parentIndex] || parents[0];
+	if (!parentElement) return null;
+
+	const childIndex = Number.isFinite(payload.childIndex) ? payload.childIndex : parseInt(payload.childIndex, 10);
+	if (Number.isFinite(childIndex) && childIndex >= 0) {
+		const byIndexAttr = parentElement.querySelector?.(`[data-autolancer-child-index="${childIndex}"]`);
+		if (byIndexAttr) return byIndexAttr;
+
+		const children = getScopedChildren(parentElement);
+		if (childIndex < children.length) return children[childIndex];
+	}
+
+	return null;
+}
+
 /**
  * Finds a specific element and performs an action on it.
  * @param {object} payload The details of the action to execute.
@@ -383,6 +417,32 @@ export async function selectByText(element, selectionText) {
 export async function performActionOnElement(payload) {
 	try {
 		const { componentType, propertyName, pattern, order, action, value } = payload;
+
+		if (action === 'fillScoped' || action === 'clickScoped') {
+			const scopedTarget = await resolveScopedTarget(payload);
+			if (!scopedTarget) return { success: false, error: 'Scoped target not found' };
+
+			if (action === 'clickScoped') {
+				scopedTarget.focus?.();
+				scopedTarget.click?.();
+				return { success: true };
+			}
+
+			let fillTarget = scopedTarget;
+			if (!(fillTarget instanceof HTMLInputElement || fillTarget instanceof HTMLTextAreaElement)) {
+				fillTarget = scopedTarget.querySelector?.('input,textarea') || fillTarget;
+			}
+			if (!(fillTarget instanceof HTMLInputElement || fillTarget instanceof HTMLTextAreaElement)) {
+				return { success: false, error: 'Scoped fill target is not an input/textarea' };
+			}
+
+			fillTarget.focus?.();
+			setNativeValue(fillTarget, value);
+			fillTarget.dispatchEvent(new Event('input', { bubbles: true }));
+			fillTarget.dispatchEvent(new Event('change', { bubbles: true }));
+			return { success: true };
+		}
+
 		let elements = findElements(componentType, propertyName, pattern);
 
 		if (!elements || elements.length === 0) {

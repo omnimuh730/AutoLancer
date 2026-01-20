@@ -50,8 +50,8 @@ const staticFieldDetectionRule = [
 	{ field: 'resume', tags: ['resume', 'cv', 'curriculum vitae'] },
 	{ field: 'coverletter', tags: ['cover letter', 'coverletter'] }, // matches "add a cover letter..."
 
-	{ field: 'work_authorization', tags: ['legally authorized', 'work in the', 'eligibility', 'visa sponsorship'] },
-	{ field: 'sponsorship_required', tags: ['require sponsorship', 'need sponsorship', 'h-1b'] },
+	{ field: 'work_authorization', tags: ['legally authorized', 'work in the', 'eligibility', 'visa sponsorship', 'authorized to work'] },
+	{ field: 'sponsorship_required', tags: ['require sponsorship', 'need sponsorship', 'h-1b', 'visa sponsorship', 'sponsorship'] },
 	{ field: 'salary_expectation', tags: ['salary', 'compensation', 'pay', 'expected'] },
 	{ field: 'file_upload', tags: ['upload', 'attach'] }
 ];

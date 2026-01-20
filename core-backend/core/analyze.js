@@ -61,11 +61,44 @@ async function analyzeData(data, options = {}) {
 				payload: { value: profileValue, childIndex: inputIndex }
 			};
 		}
+		else if (interactionType === 'SELECT') {
+			const optionsList = children.map(c => (c.innerText || '').trim()).filter(t => t.length > 0);
+			if (profileValue) {
+				const desired = String(profileValue).toLowerCase().trim();
+				const matched = optionsList.find((opt) => String(opt).toLowerCase().trim() === desired)
+					|| optionsList.find((opt) => String(opt).toLowerCase().includes(desired));
+				if (matched) {
+					finalAction = {
+						command: "SELECT_OPTION",
+						payload: { childIndex: 0, selectionValue: matched }
+					};
+				} else if (optionsList.length > 0) {
+					const aiResponse = await generateSelectionAnswer(context, optionsList, { jobDescription, profileIdentifier });
+					aiUsageStats = aiResponse.usage;
+					finalAction = {
+						command: "SELECT_OPTION",
+						payload: { childIndex: 0, selectionValue: optionsList[aiResponse.selectedIndex] }
+					};
+				} else {
+					finalAction = { command: "ERROR", reason: `No options found for '${intent.field}'` };
+				}
+			} else if (optionsList.length > 0) {
+				const aiResponse = await generateSelectionAnswer(context, optionsList, { jobDescription, profileIdentifier });
+				aiUsageStats = aiResponse.usage;
+				finalAction = {
+					command: "SELECT_OPTION",
+					payload: { childIndex: 0, selectionValue: optionsList[aiResponse.selectedIndex] }
+				};
+			} else {
+				finalAction = { command: "ERROR", reason: `No profile value for '${intent.field}'` };
+			}
+		}
 		else if (interactionType === 'SELECTION_GROUP') {
+			const optionsList = children.map(c => (c.innerText || '').trim()).filter(t => t.length > 0);
 			if (profileValue) {
 				const targetIndex = children.findIndex(child => {
 					const text = (child.innerText || '').toLowerCase().trim();
-					const value = profileValue.toLowerCase().trim();
+					const value = String(profileValue).toLowerCase().trim();
 					return text === value;
 				});
 
@@ -74,11 +107,31 @@ async function analyzeData(data, options = {}) {
 						command: "CLICK",
 						payload: { childIndex: targetIndex, text: children[targetIndex].innerText }
 					};
+				} else if (optionsList.length > 0) {
+					const aiResponse = await generateSelectionAnswer(context, optionsList, { jobDescription, profileIdentifier });
+					aiUsageStats = aiResponse.usage;
+					finalAction = {
+						command: "CLICK",
+						payload: {
+							childIndex: aiResponse.selectedIndex,
+							text: optionsList[aiResponse.selectedIndex],
+							reasoning: aiResponse.reasoning
+						}
+					};
 				} else {
-					// Fallback to AI if exact static match fails? 
-					// Optional: You could jump to the dynamic logic here if static lookup fails.
 					finalAction = { command: "ERROR", reason: `Static option '${profileValue}' not found.` };
 				}
+			} else if (optionsList.length > 0) {
+				const aiResponse = await generateSelectionAnswer(context, optionsList, { jobDescription, profileIdentifier });
+				aiUsageStats = aiResponse.usage;
+				finalAction = {
+					command: "CLICK",
+					payload: {
+						childIndex: aiResponse.selectedIndex,
+						text: optionsList[aiResponse.selectedIndex],
+						reasoning: aiResponse.reasoning
+					}
+				};
 			} else {
 				finalAction = { command: "ERROR", reason: `No profile value for '${intent.field}'` };
 			}

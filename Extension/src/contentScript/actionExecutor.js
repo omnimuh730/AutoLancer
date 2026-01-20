@@ -376,6 +376,32 @@ export async function selectByText(element, selectionText) {
 	return { success: false, error: 'Target is not a <select> or supported dropdown' };
 }
 
+export async function selectByIndex(element, selectedIndex) {
+	if (!element) return { success: false, error: 'No element' };
+	const idx = Number.isFinite(selectedIndex) ? selectedIndex : parseInt(selectedIndex, 10);
+	if (!Number.isFinite(idx) || idx < 0) return { success: false, error: 'Invalid selectedIndex' };
+
+	if (element instanceof HTMLSelectElement) {
+		if (!element.options || idx >= element.options.length) {
+			return { success: false, error: `selectedIndex ${idx} out of range` };
+		}
+		const option = element.options[idx];
+		element.value = option.value;
+		element.dispatchEvent(new Event('input', { bubbles: true }));
+		element.dispatchEvent(new Event('change', { bubbles: true }));
+		return { success: true };
+	}
+
+	// If a Select2 container/input was passed, resolve to its underlying <select> and select there.
+	if (getSelect2Container(element)) {
+		const container = getSelect2Container(element);
+		const underlyingSelect = getUnderlyingSelectForSelect2(container);
+		if (underlyingSelect) return selectByIndex(underlyingSelect, idx);
+	}
+
+	return { success: false, error: 'Target is not a <select> or supported dropdown' };
+}
+
 function getScopedChildren(parentElement) {
 	if (!parentElement) return [];
 	const outlined = Array.from(parentElement.querySelectorAll('[data-highlighter-outline]'));
@@ -410,6 +436,22 @@ async function resolveScopedTarget(payload) {
 	return null;
 }
 
+async function performScopedSelect(payload) {
+	const scopedTarget = await resolveScopedTarget(payload);
+	if (!scopedTarget) return { success: false, error: 'Scoped target not found' };
+
+	const selectedIndex = payload?.selectedIndex;
+	if (selectedIndex !== undefined && selectedIndex !== null) {
+		const byIndex = await selectByIndex(scopedTarget, selectedIndex);
+		if (byIndex.success) return { success: true };
+	}
+
+	const selectionText = payload?.value;
+	const selectResult = await selectByText(scopedTarget, selectionText);
+	if (!selectResult.success) return selectResult;
+	return { success: true };
+}
+
 /**
  * Finds a specific element and performs an action on it.
  * @param {object} payload The details of the action to execute.
@@ -441,6 +483,10 @@ export async function performActionOnElement(payload) {
 			fillTarget.dispatchEvent(new Event('input', { bubbles: true }));
 			fillTarget.dispatchEvent(new Event('change', { bubbles: true }));
 			return { success: true };
+		}
+
+		if (action === 'selectByTextScoped') {
+			return await performScopedSelect(payload);
 		}
 
 		let elements = findElements(componentType, propertyName, pattern);
@@ -479,6 +525,10 @@ export async function performActionOnElement(payload) {
 				await typeSmoothly(targetElement, value);
 				break;
 			case "selectByText": {
+				if (payload?.selectedIndex !== undefined && payload?.selectedIndex !== null) {
+					const byIndex = await selectByIndex(targetElement, payload.selectedIndex);
+					if (byIndex.success) break;
+				}
 				const result = await selectByText(targetElement, value);
 				if (!result.success) return result;
 				break;

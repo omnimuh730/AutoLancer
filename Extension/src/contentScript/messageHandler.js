@@ -89,13 +89,22 @@ function serializeElement(element) {
 		properties[attr.name] = attr.value;
 	}
 
-	return {
+	const out = {
 		tag: element.tagName.toLowerCase(),
 		properties,
 		innerText: element.innerText ?? '',
 		innerHTML: element.innerHTML, // inner markup for content-level inspection
 		outerHTML: element.outerHTML, // include wrapping tag + attributes so callers can reconstruct the full element
 	};
+
+	if (element instanceof HTMLSelectElement) {
+		out.options = Array.from(element.options || []).map((opt) => ({
+			value: opt?.value ?? '',
+			text: (opt?.textContent ?? '').trim()
+		}));
+	}
+
+	return out;
 }
 
 function aggregateChildrenText(children) {
@@ -141,6 +150,21 @@ function ensureContextualParents(parentChildMap) {
 function markDetected(element, variant = 'child') {
 	if (!element || !(element instanceof Element)) return;
 	element.setAttribute('data-autolancer-highlight', variant || 'child');
+}
+
+function findSelect2UnderlyingSelect(container) {
+	if (!container) return null;
+	const id = container.getAttribute?.('id') || '';
+	if (id && id.startsWith('s2id_')) {
+		const originalId = id.slice('s2id_'.length);
+		const candidate = document.getElementById(originalId);
+		if (candidate instanceof HTMLSelectElement) return candidate;
+	}
+	const inside = container.querySelector?.('select');
+	if (inside instanceof HTMLSelectElement) return inside;
+	const prev = container.previousElementSibling;
+	if (prev instanceof HTMLSelectElement) return prev;
+	return null;
 }
 
 
@@ -198,6 +222,23 @@ function groupAndHighlightComponents(runId) {
 			const child = children[childIndex];
 			if (child && child.setAttribute) {
 				child.setAttribute('data-autolancer-child-index', String(childIndex));
+			}
+		}
+
+		// If this group contains a Select2 widget, append its underlying <select> (hidden) so backend can see options.
+		const select2Container = parent.classList?.contains('select2-container')
+			? parent
+			: children.find((c) => c?.classList?.contains('select2-container')) || parent.querySelector?.('.select2-container');
+		if (select2Container) {
+			const underlyingSelect = findSelect2UnderlyingSelect(select2Container);
+			if (underlyingSelect && !children.includes(underlyingSelect)) {
+				const nextIndex = children.length;
+				children.push(underlyingSelect);
+				try {
+					underlyingSelect.setAttribute('data-autolancer-child-index', String(nextIndex));
+				} catch {
+					// best effort
+				}
 			}
 		}
 

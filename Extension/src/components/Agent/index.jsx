@@ -116,6 +116,12 @@ function AgentPage() {
 		if (command === 'CLICK') {
 			return children.find((c) => c?.tag === 'button' || c?.tag === 'a' || c?.tag === 'label' || (c?.tag === 'input' && ['radio', 'checkbox', 'button', 'submit'].includes(String(c?.properties?.type || '').toLowerCase()))) || null;
 		}
+		if (command === 'SELECT_OPTION') {
+			return children.find((c) => c?.tag === 'select')
+				|| children.find((c) => c?.tag === 'input' && (c?.properties?.['aria-haspopup'] === 'true' || String(c?.properties?.role || '').toLowerCase() === 'button'))
+				|| children.find((c) => c?.tag === 'a' && String(c?.properties?.class || '').split(/\s+/).includes('select2-choice'))
+				|| null;
+		}
 
 		return null;
 	}, []);
@@ -156,9 +162,9 @@ function AgentPage() {
 					const suggestion = item?.action_suggestion || item?.insights?.action_suggestion || null;
 					const command = suggestion?.command || null;
 					if (!command) continue;
-					if (command !== 'TYPING' && command !== 'CLICK') continue;
-					// Explicitly ignore dropdowns/selects/uploads for now.
-					if (command === 'SELECT_OPTION' || command === 'DROPDOWN_SELECT' || command === 'UPLOAD' || command === 'FILEUPLOAD') continue;
+					if (command !== 'TYPING' && command !== 'CLICK' && command !== 'SELECT_OPTION') continue;
+					// Explicitly ignore uploads for now.
+					if (command === 'UPLOAD' || command === 'FILEUPLOAD') continue;
 
 					const scopeSelector = deriveSelectorFromSerializedElement(group?.Parent);
 					const hasScope = Boolean(scopeSelector?.pattern);
@@ -203,6 +209,25 @@ function AgentPage() {
 							const selector = deriveSelectorFromSerializedElement(targetSerializedElement);
 							if (!selector?.pattern) continue;
 							actions.push({ ...selector, order: 0, action: 'click' });
+						}
+					}
+					else if (command === 'SELECT_OPTION') {
+						const selectionValue = suggestion?.payload?.selectionValue ?? suggestion?.payload?.value;
+						const selectedIndex = suggestion?.payload?.selectedIndex;
+						if (!selectionValue) continue;
+
+						if (hasScope && Number.isFinite(parseInt(childIndex, 10))) {
+							actions.push({
+								action: 'selectByTextScoped',
+								scope: scopeSelector,
+								childIndex: parseInt(childIndex, 10),
+								value: selectionValue,
+								selectedIndex
+							});
+						} else {
+							const selector = deriveSelectorFromSerializedElement(targetSerializedElement);
+							if (!selector?.pattern) continue;
+							actions.push({ ...selector, order: 0, action: 'selectByText', value: selectionValue, selectedIndex });
 						}
 					}
 				}

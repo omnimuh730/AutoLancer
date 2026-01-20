@@ -65,6 +65,7 @@ Answer much more shortly
 async function generateDynamicAnswer(questionContext, options = {}) {
 	const jobDescription = options?.jobDescription || '';
 	const profileIdentifier = options?.profileIdentifier || '';
+	const refine = options?.refine !== undefined ? Boolean(options.refine) : true;
 	const profile = getProfileByIdentifier(profileIdentifier);
 	const userProfile = formatProfileForPrompt(profile);
 	const jobContext = jobDescription && String(jobDescription).trim()
@@ -96,6 +97,10 @@ async function generateDynamicAnswer(questionContext, options = {}) {
 
 		const draftAnswer = completion1.choices[0].message.content.trim();
 		totalUsage = sumUsage(totalUsage, completion1.usage);
+
+		if (!refine) {
+			return { answer: draftAnswer, usage: totalUsage };
+		}
 
 		// --- TURN 2: Refinement (The "Chat" Feature) ---
 		// We push the assistant's previous answer and our critique into history

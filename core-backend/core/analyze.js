@@ -6,6 +6,26 @@ const { classifyInteractionType } = require('./elementClassifier');
 const { getProfileValue } = require('./getFunctionCalling');
 const { generateDynamicAnswer, generateSelectionAnswer } = require('./aiService'); // <--- Import New Function
 
+function getSelectOptionsFromChildren(children) {
+	const selectChild = children.find((c) => c?.tag === 'select');
+	if (!selectChild) return [];
+
+	if (Array.isArray(selectChild.options) && selectChild.options.length) {
+		return selectChild.options
+			.map((o) => (o?.text || '').trim())
+			.filter((t) => t.length > 0);
+	}
+
+	const html = selectChild.outerHTML || '';
+	if (!html.includes('<option')) return [];
+	const matches = Array.from(html.matchAll(/<option[^>]*>([^<]*)<\/option>/gi));
+	return matches.map((m) => (m[1] || '').trim()).filter(Boolean);
+}
+
+function getSelectChildIndex(children) {
+	return children.findIndex((c) => c?.tag === 'select');
+}
+
 async function analyzeData(data, options = {}) {
 	const children = data.Children || [];
 	const parent = data.Parent;
@@ -62,22 +82,24 @@ async function analyzeData(data, options = {}) {
 			};
 		}
 		else if (interactionType === 'SELECT') {
-			const optionsList = children.map(c => (c.innerText || '').trim()).filter(t => t.length > 0);
+			const optionsList = getSelectOptionsFromChildren(children);
+			const selectChildIndex = getSelectChildIndex(children);
 			if (profileValue) {
 				const desired = String(profileValue).toLowerCase().trim();
 				const matched = optionsList.find((opt) => String(opt).toLowerCase().trim() === desired)
 					|| optionsList.find((opt) => String(opt).toLowerCase().includes(desired));
 				if (matched) {
+					const selectedIndex = Math.max(0, optionsList.findIndex((opt) => opt === matched));
 					finalAction = {
 						command: "SELECT_OPTION",
-						payload: { childIndex: 0, selectionValue: matched }
+						payload: { childIndex: selectChildIndex, selectedIndex, selectionValue: matched }
 					};
 				} else if (optionsList.length > 0) {
 					const aiResponse = await generateSelectionAnswer(context, optionsList, { jobDescription, profileIdentifier });
 					aiUsageStats = aiResponse.usage;
 					finalAction = {
 						command: "SELECT_OPTION",
-						payload: { childIndex: 0, selectionValue: optionsList[aiResponse.selectedIndex] }
+						payload: { childIndex: selectChildIndex, selectedIndex: aiResponse.selectedIndex, selectionValue: optionsList[aiResponse.selectedIndex] }
 					};
 				} else {
 					finalAction = { command: "ERROR", reason: `No options found for '${intent.field}'` };
@@ -87,7 +109,7 @@ async function analyzeData(data, options = {}) {
 				aiUsageStats = aiResponse.usage;
 				finalAction = {
 					command: "SELECT_OPTION",
-					payload: { childIndex: 0, selectionValue: optionsList[aiResponse.selectedIndex] }
+					payload: { childIndex: selectChildIndex, selectedIndex: aiResponse.selectedIndex, selectionValue: optionsList[aiResponse.selectedIndex] }
 				};
 			} else {
 				finalAction = { command: "ERROR", reason: `No profile value for '${intent.field}'` };
@@ -144,12 +166,12 @@ async function analyzeData(data, options = {}) {
 		if (interactionType === 'TYPING') {
 
 			// 1. Call AI Service
-			const aiResponse = await generateDynamicAnswer(context, { jobDescription, profileIdentifier });
+			const inputIndex = children.findIndex(c => c.tag === 'input' || c.tag === 'textarea');
+			const isTextarea = children?.[inputIndex]?.tag === 'textarea';
+			const aiResponse = await generateDynamicAnswer(context, { jobDescription, profileIdentifier, refine: isTextarea });
 			aiUsageStats = aiResponse.usage;
 
 			// 2. Find the input element
-			const inputIndex = children.findIndex(c => c.tag === 'input' || c.tag === 'textarea');
-
 			finalAction = {
 				command: "TYPING",
 				payload: {
@@ -164,7 +186,9 @@ async function analyzeData(data, options = {}) {
 
 			// 1. Extract Options from Children
 			// We strip clean the text for the AI to read
-			const optionsList = children.map(c => (c.innerText || '').trim()).filter(t => t.length > 0);
+			const optionsList = interactionType === 'SELECT'
+				? getSelectOptionsFromChildren(children)
+				: children.map(c => (c.innerText || '').trim()).filter(t => t.length > 0);
 
 			if (optionsList.length > 0) {
 				// 2. Call AI Selection Service
@@ -184,10 +208,12 @@ async function analyzeData(data, options = {}) {
 					};
 				} else if (interactionType === 'SELECT') {
 					// For native <select>, we usually SELECT by value or text
+					const selectChildIndex = getSelectChildIndex(children);
 					finalAction = {
 						command: "SELECT_OPTION",
 						payload: {
-							childIndex: 0, // usually the select element itself is index 0 or found via tag
+							childIndex: selectChildIndex,
+							selectedIndex: aiResponse.selectedIndex,
 							selectionValue: optionsList[aiResponse.selectedIndex]
 						}
 					};

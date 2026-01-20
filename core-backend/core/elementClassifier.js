@@ -11,6 +11,10 @@ function classifyInteractionType(children) {
 	const fileInput = children.find(c => c.tag === 'input' && getType(c) === 'file');
 	if (fileInput) return 'UPLOAD';
 
+	// 2. Check for Select (Native Dropdowns) (must come before text inputs for Select2-like widgets)
+	const selectInput = children.find(c => c.tag === 'select');
+	if (selectInput) return 'SELECT';
+
 	// 2. Check for Text Inputs
 	// Includes standard inputs and textareas
 	const textInput = children.find(c =>
@@ -24,10 +28,6 @@ function classifyInteractionType(children) {
 
 	if (combobox) return 'COMBOBOX';
 	if (textInput && !combobox) return 'TYPING';
-
-	// 4. Check for Select (Native Dropdowns)
-	const selectInput = children.find(c => c.tag === 'select');
-	if (selectInput) return 'SELECT';
 
 	// 5. Check for Selection Groups (Radios, Checkboxes, Button Toggles)
 

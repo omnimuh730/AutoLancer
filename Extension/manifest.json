@@ -1,13 +1,14 @@
 {
 	"manifest_version": 3,
-	"name": "AIMS",
-	"version": "1.0",
-	"description": "Sidebar built with Gladiator",
+	"name": "AutoLancer",
+	"version": "2.0",
+	"description": "AI based assistant to help freelancers apply and manage job postings more efficiently.",
 	"permissions": [
 		"sidePanel",
 		"activeTab",
 		"scripting",
-		"tabs"
+		"tabs",
+		"storage"
 	],
 	"host_permissions": [
 		"http://*/*",

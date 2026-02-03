@@ -1,5 +1,6 @@
 
 import { skillsCategoryCollection } from "../db/mongo.js";
+import { buildMongoCaseInsensitiveRegexFilter } from "../utils/safeRegex.js";
 
 export async function getSkillCategories(req, res) {
 	try {
@@ -16,9 +17,8 @@ export async function getSkillCategories(req, res) {
 		const limitNum = Math.max(1, parseInt(limit, 10) || 30);
 		const skip = (pageNum - 1) * limitNum;
 		const query = {};
-		if (q && typeof q === 'string' && q.trim().length > 0) {
-			query.name = { $regex: q, $options: 'i' };
-		}
+		const nameFilter = buildMongoCaseInsensitiveRegexFilter(q);
+		if (nameFilter) query.name = nameFilter;
 		const total = await skillsCategoryCollection.countDocuments(query);
 		const docs = await skillsCategoryCollection.find(query).sort(sortOption).skip(skip).limit(limitNum).toArray();
 		const skills = docs.map(d => d.name);

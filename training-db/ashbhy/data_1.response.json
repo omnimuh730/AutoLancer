@@ -1,0 +1,538 @@
+{
+	"message": "Analyze endpoint received data successfully",
+	"payload": [
+		{
+			"summary": "Unnecessary element detected.",
+			"action_suggestion": null
+		},
+		{
+			"summary": "Unnecessary element detected.",
+			"action_suggestion": null
+		},
+		{
+			"summary": "Analyzed: resume (UPLOAD)",
+			"insights": {
+				"field": "resume",
+				"interactionType": "UPLOAD",
+				"context": "autofill from resume  upload your resume here to autofill key application fields.  upload file "
+			},
+			"action_suggestion": {
+				"command": "UPLOAD",
+				"payload": {
+					"value": null,
+					"childIndex": 0
+				}
+			},
+			"aiUsage": null
+		},
+		{
+			"summary": "Analyzed: resume (SELECTION_GROUP)",
+			"insights": {
+				"field": "resume",
+				"interactionType": "SELECTION_GROUP",
+				"context": "autofill from resume  upload your resume here to autofill key application fields.  upload file "
+			},
+			"action_suggestion": {
+				"command": "CLICK",
+				"payload": {
+					"childIndex": 0,
+					"text": "Upload file",
+					"reasoning": "The prompt asks to upload a resume to autofill fields; the only available option is 'Upload file', which directly matches the requested action."
+				}
+			},
+			"aiUsage": {
+				"prompt_tokens": 746,
+				"completion_tokens": 243,
+				"total_tokens": 989,
+				"prompt_tokens_details": {
+					"cached_tokens": 0,
+					"audio_tokens": 0
+				},
+				"completion_tokens_details": {
+					"reasoning_tokens": 192,
+					"audio_tokens": 0,
+					"accepted_prediction_tokens": 0,
+					"rejected_prediction_tokens": 0
+				}
+			}
+		},
+		{
+			"summary": "Analyzed: name (TYPING)",
+			"insights": {
+				"field": "name",
+				"interactionType": "TYPING",
+				"context": "name  first and last type here... _systemfield_name _systemfield_name"
+			},
+			"action_suggestion": {
+				"command": "TYPING",
+				"payload": {
+					"value": "Terry Huang",
+					"childIndex": 0
+				}
+			},
+			"aiUsage": null
+		},
+		{
+			"summary": "Analyzed: email (TYPING)",
+			"insights": {
+				"field": "email",
+				"interactionType": "TYPING",
+				"context": "email hello@example.com... _systemfield_email _systemfield_email"
+			},
+			"action_suggestion": {
+				"command": "TYPING",
+				"payload": {
+					"value": "terry.huang.work@gmail.com",
+					"childIndex": 0
+				}
+			},
+			"aiUsage": null
+		},
+		{
+			"summary": "Analyzed: phonenumber (TYPING)",
+			"insights": {
+				"field": "phonenumber",
+				"interactionType": "TYPING",
+				"context": "phone number 1-415-555-1234... 9f3e3333-6f83-4891-9ade-eecab360a629 9f3e3333-6f83-4891-9ade-eecab360a629"
+			},
+			"action_suggestion": {
+				"command": "TYPING",
+				"payload": {
+					"value": "(254) 788-6685",
+					"childIndex": 0
+				}
+			},
+			"aiUsage": null
+		},
+		{
+			"summary": "Analyzed: location (COMBOBOX)",
+			"insights": {
+				"field": "location",
+				"interactionType": "COMBOBOX",
+				"context": "location start typing... "
+			},
+			"action_suggestion": {
+				"command": "TYPING",
+				"payload": {
+					"value": "Gladewater, TX",
+					"childIndex": 0
+				}
+			},
+			"aiUsage": null
+		},
+		{
+			"summary": "Analyzed: Dynamic Question (TYPING)",
+			"insights": {
+				"field": null,
+				"interactionType": "TYPING",
+				"context": "pronouns  add pronouns to your application so interviewers know how to refer to you when talking to or about you. type here... c9df59ec-2a34-402b-9b21-851623d84122 c9df59ec-2a34-402b-9b21-851623d84122"
+			},
+			"action_suggestion": {
+				"command": "TYPING",
+				"payload": {
+					"value": "He/Him/His. Please refer to me using he/him pronouns in all references.",
+					"childIndex": 0
+				}
+			},
+			"aiUsage": {
+				"prompt_tokens": 683,
+				"completion_tokens": 733,
+				"total_tokens": 1416
+			}
+		},
+		{
+			"summary": "Analyzed: linkedin (TYPING)",
+			"insights": {
+				"field": "linkedin",
+				"interactionType": "TYPING",
+				"context": "linkedin  please provide url type here... 70d86332-46ce-4a05-afe8-ddd0ed6ea384 70d86332-46ce-4a05-afe8-ddd0ed6ea384"
+			},
+			"action_suggestion": {
+				"command": "TYPING",
+				"payload": {
+					"value": "https://www.linkedin.com/in/terry-huang-ab002047",
+					"childIndex": 0
+				}
+			},
+			"aiUsage": null
+		},
+		{
+			"summary": "Analyzed: resume (UPLOAD)",
+			"insights": {
+				"field": "resume",
+				"interactionType": "UPLOAD",
+				"context": "upload file  or drag and drop here _systemfield_resume"
+			},
+			"action_suggestion": {
+				"command": "UPLOAD",
+				"payload": {
+					"value": null,
+					"childIndex": 0
+				}
+			},
+			"aiUsage": null
+		},
+		{
+			"summary": "Analyzed: file_upload (SELECTION_GROUP)",
+			"insights": {
+				"field": "file_upload",
+				"interactionType": "SELECTION_GROUP",
+				"context": "upload file  or drag and drop here "
+			},
+			"action_suggestion": {
+				"command": "CLICK",
+				"payload": {
+					"childIndex": 0,
+					"text": "Upload File",
+					"reasoning": "The prompt asks to upload a file (via upload or drag-and-drop). The only provided option is 'Upload File', so index 0 is the correct match."
+				}
+			},
+			"aiUsage": {
+				"prompt_tokens": 734,
+				"completion_tokens": 312,
+				"total_tokens": 1046,
+				"prompt_tokens_details": {
+					"cached_tokens": 0,
+					"audio_tokens": 0
+				},
+				"completion_tokens_details": {
+					"reasoning_tokens": 256,
+					"audio_tokens": 0,
+					"accepted_prediction_tokens": 0,
+					"rejected_prediction_tokens": 0
+				}
+			}
+		},
+		{
+			"summary": "Analyzed: Dynamic Question (SELECTION_GROUP)",
+			"insights": {
+				"field": null,
+				"interactionType": "SELECTION_GROUP",
+				"context": "do you have a college degree? yes no  "
+			},
+			"action_suggestion": {
+				"command": "CLICK",
+				"payload": {
+					"childIndex": 0,
+					"text": "Yes",
+					"reasoning": "Candidate Terry Huang holds a Bachelor of Science in Computer Science from Texas A&M University, so the correct answer is Yes."
+				}
+			},
+			"aiUsage": {
+				"prompt_tokens": 737,
+				"completion_tokens": 303,
+				"total_tokens": 1040,
+				"prompt_tokens_details": {
+					"cached_tokens": 0,
+					"audio_tokens": 0
+				},
+				"completion_tokens_details": {
+					"reasoning_tokens": 256,
+					"audio_tokens": 0,
+					"accepted_prediction_tokens": 0,
+					"rejected_prediction_tokens": 0
+				}
+			}
+		},
+		{
+			"summary": "Analyzed: Dynamic Question (TYPING)",
+			"insights": {
+				"field": null,
+				"interactionType": "TYPING",
+				"context": "what institution(s) did you graduate from? type here... af932d6a-b18e-452b-8972-e57a553b2710 af932d6a-b18e-452b-8972-e57a553b2710"
+			},
+			"action_suggestion": {
+				"command": "TYPING",
+				"payload": {
+					"value": "Texas A&M University (Bachelor of Science in Computer Science).",
+					"childIndex": 0
+				}
+			},
+			"aiUsage": {
+				"prompt_tokens": 665,
+				"completion_tokens": 597,
+				"total_tokens": 1262
+			}
+		},
+		{
+			"summary": "Analyzed: Dynamic Question (TYPING)",
+			"insights": {
+				"field": null,
+				"interactionType": "TYPING",
+				"context": "what was your major/minor? type here... 913d19d6-4f9d-48b2-bf4f-78c5fa01e5c6 913d19d6-4f9d-48b2-bf4f-78c5fa01e5c6"
+			},
+			"action_suggestion": {
+				"command": "TYPING",
+				"payload": {
+					"value": "Major: Computer Science. Minor: None. I earned my Bachelor of Science in Computer Science from Texas A&M University.",
+					"childIndex": 0
+				}
+			},
+			"aiUsage": {
+				"prompt_tokens": 679,
+				"completion_tokens": 737,
+				"total_tokens": 1416
+			}
+		},
+		{
+			"summary": "Analyzed: Dynamic Question (SELECTION_GROUP)",
+			"insights": {
+				"field": null,
+				"interactionType": "SELECTION_GROUP",
+				"context": "are you currently enrolled in full time  education?  like a bachelor's, master's, or phd program  yes no  "
+			},
+			"action_suggestion": {
+				"command": "CLICK",
+				"payload": {
+					"childIndex": 1,
+					"text": "No",
+					"reasoning": "The candidate already earned a Bachelor's degree and is not listed as currently enrolled. Therefore, answer is No."
+				}
+			},
+			"aiUsage": {
+				"prompt_tokens": 751,
+				"completion_tokens": 363,
+				"total_tokens": 1114,
+				"prompt_tokens_details": {
+					"cached_tokens": 0,
+					"audio_tokens": 0
+				},
+				"completion_tokens_details": {
+					"reasoning_tokens": 320,
+					"audio_tokens": 0,
+					"accepted_prediction_tokens": 0,
+					"rejected_prediction_tokens": 0
+				}
+			}
+		},
+		{
+			"summary": "Analyzed: Dynamic Question (SELECTION_GROUP)",
+			"insights": {
+				"field": null,
+				"interactionType": "SELECTION_GROUP",
+				"context": "will you now or in the future require reducto to commence or sponsor an immigration case in order to employ you (for example h1-b or other employment based immigration) in the united states? yes no  "
+			},
+			"action_suggestion": {
+				"command": "CLICK",
+				"payload": {
+					"childIndex": 1,
+					"text": "No",
+					"reasoning": "No. The candidate is currently authorized to work in the United States and does not require visa sponsorship now. Sponsorship would only be needed if the employment eligibility situation changes."
+				}
+			},
+			"aiUsage": {
+				"prompt_tokens": 769,
+				"completion_tokens": 571,
+				"total_tokens": 1340,
+				"prompt_tokens_details": {
+					"cached_tokens": 0,
+					"audio_tokens": 0
+				},
+				"completion_tokens_details": {
+					"reasoning_tokens": 512,
+					"audio_tokens": 0,
+					"accepted_prediction_tokens": 0,
+					"rejected_prediction_tokens": 0
+				}
+			}
+		},
+		{
+			"summary": "Analyzed: Dynamic Question (SELECTION_GROUP)",
+			"insights": {
+				"field": null,
+				"interactionType": "SELECTION_GROUP",
+				"context": "have you worked at a startup? yes no  "
+			},
+			"action_suggestion": {
+				"command": "CLICK",
+				"payload": {
+					"childIndex": 0,
+					"text": "Yes",
+					"reasoning": "Yes. Tango Health functioned as a startup and I contributed across the stack, shipping features quickly and owning end-to-end delivery in a fast-paced environment."
+				}
+			},
+			"aiUsage": {
+				"prompt_tokens": 737,
+				"completion_tokens": 568,
+				"total_tokens": 1305,
+				"prompt_tokens_details": {
+					"cached_tokens": 0,
+					"audio_tokens": 0
+				},
+				"completion_tokens_details": {
+					"reasoning_tokens": 512,
+					"audio_tokens": 0,
+					"accepted_prediction_tokens": 0,
+					"rejected_prediction_tokens": 0
+				}
+			}
+		},
+		{
+			"summary": "Analyzed: Dynamic Question (SELECTION_GROUP)",
+			"insights": {
+				"field": null,
+				"interactionType": "SELECTION_GROUP",
+				"context": "are you open to working 5 days a week onsite in san francisco? yes no  "
+			},
+			"action_suggestion": {
+				"command": "CLICK",
+				"payload": {
+					"childIndex": 1,
+					"text": "No",
+					"reasoning": "The candidate is remote-only and not willing to relocate; onsite in San Francisco conflicts with stated preference."
+				}
+			},
+			"aiUsage": {
+				"prompt_tokens": 746,
+				"completion_tokens": 423,
+				"total_tokens": 1169,
+				"prompt_tokens_details": {
+					"cached_tokens": 0,
+					"audio_tokens": 0
+				},
+				"completion_tokens_details": {
+					"reasoning_tokens": 384,
+					"audio_tokens": 0,
+					"accepted_prediction_tokens": 0,
+					"rejected_prediction_tokens": 0
+				}
+			}
+		},
+		{
+			"summary": "Analyzed: Dynamic Question (TYPING)",
+			"insights": {
+				"field": null,
+				"interactionType": "TYPING",
+				"context": "what country are you located in? type here... dc1a753c-2cbb-4524-b1a7-0ff75fa8a31c dc1a753c-2cbb-4524-b1a7-0ff75fa8a31c"
+			},
+			"action_suggestion": {
+				"command": "TYPING",
+				"payload": {
+					"value": "United States. Based in Gladewater, Texas, USA, and authorized to work in the US.",
+					"childIndex": 0
+				}
+			},
+			"aiUsage": {
+				"prompt_tokens": 671,
+				"completion_tokens": 606,
+				"total_tokens": 1277
+			}
+		},
+		{
+			"summary": "Analyzed: Dynamic Question (TYPING)",
+			"insights": {
+				"field": null,
+				"interactionType": "TYPING",
+				"context": "what is your current job title? type here... 833808cd-b6b0-4b39-babe-d1d0fea667b4 833808cd-b6b0-4b39-babe-d1d0fea667b4"
+			},
+			"action_suggestion": {
+				"command": "TYPING",
+				"payload": {
+					"value": "Senior Software Engineer, Airbnb.",
+					"childIndex": 0
+				}
+			},
+			"aiUsage": {
+				"prompt_tokens": 665,
+				"completion_tokens": 527,
+				"total_tokens": 1192
+			}
+		},
+		{
+			"summary": "Analyzed: Dynamic Question (SELECTION_GROUP)",
+			"insights": {
+				"field": null,
+				"interactionType": "SELECTION_GROUP",
+				"context": "are you able to consistently troubleshoot tickets that involve debugging python code provided by a customer? yes no  "
+			},
+			"action_suggestion": {
+				"command": "CLICK",
+				"payload": {
+					"childIndex": 0,
+					"text": "Yes",
+					"reasoning": "Yes. Terry Huang has extensive backend experience with Python usage at Amazon and Airbnb, routinely debugging and triaging customer-submitted Python code in support tickets."
+				}
+			},
+			"aiUsage": {
+				"prompt_tokens": 747,
+				"completion_tokens": 949,
+				"total_tokens": 1696,
+				"prompt_tokens_details": {
+					"cached_tokens": 0,
+					"audio_tokens": 0
+				},
+				"completion_tokens_details": {
+					"reasoning_tokens": 896,
+					"audio_tokens": 0,
+					"accepted_prediction_tokens": 0,
+					"rejected_prediction_tokens": 0
+				}
+			}
+		},
+		{
+			"summary": "Analyzed: Dynamic Question (SELECTION_GROUP)",
+			"insights": {
+				"field": null,
+				"interactionType": "SELECTION_GROUP",
+				"context": "have you provided support for technical products with developers as the end users for at least one year? yes no  "
+			},
+			"action_suggestion": {
+				"command": "CLICK",
+				"payload": {
+					"childIndex": 0,
+					"text": "Yes",
+					"reasoning": "Yes. In roles at Airbnb (2022–present) and prior positions, I supported developer-facing technical products and internal tools used by engineers, easily surpassing one year of end-user developer support."
+				}
+			},
+			"aiUsage": {
+				"prompt_tokens": 749,
+				"completion_tokens": 767,
+				"total_tokens": 1516,
+				"prompt_tokens_details": {
+					"cached_tokens": 0,
+					"audio_tokens": 0
+				},
+				"completion_tokens_details": {
+					"reasoning_tokens": 704,
+					"audio_tokens": 0,
+					"accepted_prediction_tokens": 0,
+					"rejected_prediction_tokens": 0
+				}
+			}
+		},
+		{
+			"summary": "Submit Application button detected.",
+			"action_suggestion": {
+				"command": "MANUAL_INTERVENTION",
+				"payload": {
+					"childIndex": 0,
+					"text": "Submit Application",
+					"message": "Submit/Apply/Next detected. Please review the form and click manually."
+				}
+			}
+		},
+		{
+			"summary": "Unnecessary element detected.",
+			"action_suggestion": null
+		},
+		{
+			"summary": "Unnecessary element detected.",
+			"action_suggestion": null
+		},
+		{
+			"summary": "Unnecessary element detected.",
+			"action_suggestion": null
+		}
+	],
+	"meta": {
+		"performance": {
+			"durationSeconds": "15.00",
+			"requestsPerSecondConfig": 10
+		},
+		"cost": {
+			"inputTokens": 10079,
+			"outputTokens": 7699,
+			"estimatedPriceUSD": 0.0061312499999999995
+		}
+	}
+}

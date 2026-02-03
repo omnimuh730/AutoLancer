@@ -2,6 +2,7 @@ import { findLowestCommonAncestor, findElements, waitForElements } from "./eleme
 import { isVisible } from "./domUtils";
 import { clearHighlights, highlightByPattern as doHighlightByPattern } from "./highlighter";
 import { performActionOnElement } from "./actionExecutor";
+import { matchesSubmitKeyword } from "./submitDetector";
 
 /* global chrome */
 
@@ -78,7 +79,7 @@ function findMeaningfulParent(startNode) {
  * @param {HTMLElement} element The element to serialize.
  * @returns {Object|null} A structured object or null if the element is invalid.
  */
-	function serializeElement(element) {
+function serializeElement(element) {
 		if (!element || typeof element.tagName !== 'string') {
 			return null;
 		}
@@ -88,25 +89,93 @@ function findMeaningfulParent(startNode) {
 		properties[attr.name] = attr.value;
 	}
 
-	return {
+	const out = {
 		tag: element.tagName.toLowerCase(),
 		properties,
 		innerText: element.innerText ?? '',
 		innerHTML: element.innerHTML, // inner markup for content-level inspection
 		outerHTML: element.outerHTML, // include wrapping tag + attributes so callers can reconstruct the full element
 	};
+
+	if (element instanceof HTMLSelectElement) {
+		out.options = Array.from(element.options || []).map((opt) => ({
+			value: opt?.value ?? '',
+			text: (opt?.textContent ?? '').trim()
+		}));
+	}
+
+	return out;
+}
+
+function aggregateChildrenText(children) {
+	if (!Array.isArray(children) || children.length === 0) return '';
+	const combined = children
+		.map((child) => (child?.innerText ?? ''))
+		.filter(Boolean)
+		.join(' ');
+	return normalizeText(combined);
+}
+
+function ensureContextualParents(parentChildMap) {
+	const contextualMap = new Map();
+
+	for (const [parent, children] of parentChildMap.entries()) {
+		const combinedChildText = aggregateChildrenText(children);
+		let finalParent = parent;
+		let guard = 0;
+
+		while (guard < 10) {
+			const parentText = normalizeText(finalParent.innerText);
+			const parentHasContext = parentText && (!combinedChildText || parentText !== combinedChildText);
+			if (parentHasContext) {
+				break;
+			}
+			const nextParent = findMeaningfulParent(finalParent);
+			if (!nextParent || nextParent === finalParent) {
+				break;
+			}
+			finalParent = nextParent;
+			guard++;
+		}
+
+		if (!contextualMap.has(finalParent)) {
+			contextualMap.set(finalParent, []);
+		}
+		contextualMap.get(finalParent).push(...children);
+	}
+
+	return contextualMap;
+}
+
+function markDetected(element, variant = 'child') {
+	if (!element || !(element instanceof Element)) return;
+	element.setAttribute('data-autolancer-highlight', variant || 'child');
+}
+
+function findSelect2UnderlyingSelect(container) {
+	if (!container) return null;
+	const id = container.getAttribute?.('id') || '';
+	if (id && id.startsWith('s2id_')) {
+		const originalId = id.slice('s2id_'.length);
+		const candidate = document.getElementById(originalId);
+		if (candidate instanceof HTMLSelectElement) return candidate;
+	}
+	const inside = container.querySelector?.('select');
+	if (inside instanceof HTMLSelectElement) return inside;
+	const prev = container.previousElementSibling;
+	if (prev instanceof HTMLSelectElement) return prev;
+	return null;
 }
 
 
 /**
  * Groups red-highlighted nodes, highlights parents, and returns the structured data.
  */
-function groupAndHighlightComponents() {
+function groupAndHighlightComponents(runId) {
 	// ... PHASE 1 and PHASE 2 remain exactly the same ...
 	const highlightedNodes = document.querySelectorAll('[data-highlighter-outline]');
 	const parentChildMap = new Map();
 	const processedChildren = new Set();
-	const specialButtonTexts = ['submit', 'next', 'apply'];
 
 	const fieldsets = document.querySelectorAll('fieldset');
 	for (const fieldset of fieldsets) {
@@ -122,8 +191,11 @@ function groupAndHighlightComponents() {
 	for (const node of highlightedNodes) {
 		if (processedChildren.has(node)) continue;
 		let parentComponent;
-		const nodeText = normalizeText(node.innerText).toLowerCase();
-		if (node.tagName === 'BUTTON' && specialButtonTexts.includes(nodeText)) {
+		const treatAsStandalone = matchesSubmitKeyword(node) && (
+			node.tagName === 'BUTTON' ||
+			node.matches('input[type="submit"], input[type="button"], [role="button"], a')
+		);
+		if (treatAsStandalone) {
 			parentComponent = node;
 		} else {
 			parentComponent = findMeaningfulParent(node);
@@ -135,18 +207,40 @@ function groupAndHighlightComponents() {
 	}
 
 
+	const contextualMap = ensureContextualParents(parentChildMap);
+
 	// --- PHASE 3: MODIFIED to use the new serializer ---
 	const resultData = [];
-	for (const [parent, children] of parentChildMap.entries()) {
-		// Highlighting logic is unchanged
-		if (parent.hasAttribute('data-highlighter-outline')) {
-			parent.style.outline = '4px solid limegreen';
-			parent.style.outlineOffset = '2px';
-		} else {
-			parent.style.outline = '3px solid green';
-			parent.style.outlineOffset = '2px';
-		}
+	for (const [parent, children] of contextualMap.entries()) {
+		// No visual border/highlight effects; only mark detection attributes.
+		if (!parent.hasAttribute('data-highlighter-outline')) markDetected(parent, 'parent');
 		parent.setAttribute('data-highlighter-parent', 'true');
+		parent.setAttribute('data-autolancer-group-id', `${runId || 'run'}:${resultData.length}`);
+
+		// Assign stable indices to children so actions can target reliably later.
+		for (let childIndex = 0; childIndex < children.length; childIndex++) {
+			const child = children[childIndex];
+			if (child && child.setAttribute) {
+				child.setAttribute('data-autolancer-child-index', String(childIndex));
+			}
+		}
+
+		// If this group contains a Select2 widget, append its underlying <select> (hidden) so backend can see options.
+		const select2Container = parent.classList?.contains('select2-container')
+			? parent
+			: children.find((c) => c?.classList?.contains('select2-container')) || parent.querySelector?.('.select2-container');
+		if (select2Container) {
+			const underlyingSelect = findSelect2UnderlyingSelect(select2Container);
+			if (underlyingSelect && !children.includes(underlyingSelect)) {
+				const nextIndex = children.length;
+				children.push(underlyingSelect);
+				try {
+					underlyingSelect.setAttribute('data-autolancer-child-index', String(nextIndex));
+				} catch {
+					// best effort
+				}
+			}
+		}
 
 		// *** THIS IS THE CHANGED PART ***
 		// Instead of outerHTML, we now call serializeElement.
@@ -233,6 +327,76 @@ export const messageHandler = (request, sender, sendResponse) => {
 					break;
 				}
 
+				case 'executeActionsSequence': {
+					const runId = request?.payload?.runId || null;
+					const actions = Array.isArray(request?.payload?.actions) ? request.payload.actions : [];
+					const results = [];
+
+					const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+					try {
+						for (let i = 0; i < actions.length; i++) {
+							const actionPayload = actions[i];
+							const result = await performActionOnElement(actionPayload);
+							results.push({ index: i, ...result });
+							// Small pause between actions to allow DOM/framework updates to settle.
+							await wait(75);
+						}
+
+						try {
+							chrome.runtime.sendMessage({
+								action: 'executeActionsSequenceResult',
+								payload: { runId, success: true, results }
+							});
+						} catch (err) {
+							console.error('Failed to send executeActionsSequenceResult message:', err);
+						}
+					} catch (err) {
+						console.error('executeActionsSequence error:', err);
+						try {
+							chrome.runtime.sendMessage({
+								action: 'executeActionsSequenceResult',
+								payload: { runId, success: false, error: String(err && err.message || err), results }
+							});
+						} catch (e) {
+							console.error('Failed to send executeActionsSequenceResult error message:', e);
+						}
+					}
+					break;
+				}
+
+				case 'executeActionsParallel': {
+					const runId = request?.payload?.runId || null;
+					const actions = Array.isArray(request?.payload?.actions) ? request.payload.actions : [];
+
+					try {
+						const results = await Promise.all(actions.map(async (actionPayload, index) => {
+							const result = await performActionOnElement(actionPayload);
+							return { index, ...result };
+						}));
+
+						try {
+							chrome.runtime.sendMessage({
+								action: 'executeActionsParallelResult',
+								payload: { runId, success: true, results }
+							});
+						} catch (err) {
+							console.error('Failed to send executeActionsParallelResult message:', err);
+						}
+					} catch (err) {
+						console.error('executeActionsParallel error:', err);
+						try {
+							chrome.runtime.sendMessage({
+								action: 'executeActionsParallelResult',
+								payload: { runId, success: false, error: String(err && err.message || err) }
+							});
+						} catch (e) {
+							console.error('Failed to send executeActionsParallelResult error message:', e);
+						}
+					}
+					break;
+				}
+
 				case 'highlightInteractables': {
 					try {
 						clearHighlights();
@@ -245,7 +409,9 @@ export const messageHandler = (request, sender, sendResponse) => {
 						const selector = 'input:not([type="hidden"]),select,textarea,button,[role="button"],[tabindex],a[href]';
 
 						const nodes = Array.from(document.querySelectorAll(selector))
-							.filter(isVisible)
+							// Include hidden <input type="file"> elements so uploads can be automated
+							// even when the UI uses a custom "Upload" button.
+							.filter((el) => isVisible(el) || el.matches?.('input[type="file"]'))
 							.filter(el => {
 								if (!el.hasAttribute('tabindex')) return true;
 								const hasInteractableChildren = el.querySelector(INTERACTABLE_CHILD_SELECTOR);
@@ -267,19 +433,21 @@ export const messageHandler = (request, sender, sendResponse) => {
 							try {
 								const originalOutline = targetElement.style.outline;
 								targetElement.setAttribute('data-highlighter-original-outline', originalOutline || '');
-								targetElement.style.outline = '2px solid red';
 								targetElement.setAttribute('data-highlighter-outline', 'true');
+								const variant = matchesSubmitKeyword(targetElement) ? 'submit' : 'child';
+								markDetected(targetElement, variant);
 							} catch (e) { console.error('applyHighlight error for element:', el, e); }
 						}
 
-						const componentData = groupAndHighlightComponents();
+						const runId = request?.payload?.runId || null;
+						const componentData = groupAndHighlightComponents(runId);
 						console.log('Detected Component Structure:', componentData);
 
 						// Send the structured result back to the extension UI via background
 						try {
 							chrome.runtime.sendMessage({
 								action: 'interactablesResult',
-								payload: { components: componentData }
+								payload: { components: componentData, runId }
 							});
 						} catch (err) {
 							console.error('Failed to send interactablesResult message:', err);

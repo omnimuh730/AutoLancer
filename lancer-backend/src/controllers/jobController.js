@@ -9,8 +9,48 @@ import {
 } from "../db/mongo.js";
 import { calculateJobScores } from "../../../configs/jobScore.js";
 import { JobSource } from '../../../configs/pub.js';
-import { isJobBlocked, buildMongoQueryForRule } from '../utils/ruleMatcher.js';
+import { isJobBlocked, buildMongoQueryForRule, isMatchNoneQuery } from '../utils/ruleMatcher.js';
 import { computeSkillScoreValue, getMissingSkills, refreshSkillScoresForSkills } from '../services/skillScoreService.js';
+import { buildMongoCaseInsensitiveRegexFilter, buildRegexAlternation, buildSafeRegExp } from '../utils/safeRegex.js';
+
+const DUPLICATE_LOOKBACK_DAYS = 30;
+const LOOKBACK_WINDOW_MS = DUPLICATE_LOOKBACK_DAYS * 24 * 60 * 60 * 1000;
+
+const toValidDate = (value) => {
+	if (!value) return null;
+	const date = new Date(value);
+	return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const resolvePostedAt = (job, now) => {
+	if (job.postedAt) {
+		const explicitPostedAt = toValidDate(job.postedAt);
+		if (explicitPostedAt) {
+			return explicitPostedAt.toISOString();
+		}
+	}
+
+	let postedAtDate = new Date(now);
+	if (job.postedAgo && typeof job.postedAgo === 'string') {
+		const match = job.postedAgo.match(/(\d+)\s+(minute|hour|day)/);
+		if (match) {
+			const value = parseInt(match[1], 10);
+			const unit = match[2];
+			if (unit === 'minute') {
+				postedAtDate.setMinutes(postedAtDate.getMinutes() - value);
+			} else if (unit === 'hour') {
+				postedAtDate.setHours(postedAtDate.getHours() - value);
+			} else if (unit === 'day') {
+				postedAtDate.setDate(postedAtDate.getDate() - value);
+			}
+		}
+	}
+	return postedAtDate.toISOString();
+};
+
+const extractJobTimestamp = (jobDoc) => {
+	return toValidDate(jobDoc?.postedAt) || toValidDate(jobDoc?._createdAt) || toValidDate(jobDoc?.createdAt);
+};
 
 export async function createJob(req, res) {
 	try {
@@ -29,40 +69,24 @@ export async function createJob(req, res) {
 			return res.status(200).json({ success: false, created: false, reason: `Blocked by rule: ${blockingRule}` });
 		}
 
-		// Requirement 1: if the url is duplicated from the any of existing data from last 20 days, job is not created.
-		if (job.url) {
-			const twentyDaysAgo = new Date();
-			twentyDaysAgo.setDate(twentyDaysAgo.getDate() - 20);
+		const now = new Date();
+		const createdAt = now.toISOString();
+		const postedAt = resolvePostedAt(job, now);
 
-			const existingJob = await jobsCollection.findOne({
-				url: job.url,
-				_createdAt: { $gte: twentyDaysAgo.toISOString() },
-			});
+		// Requirement 1: prevent duplicates for jobs posted within the last 30 days.
+		if (job.url) {
+			const existingJob = await jobsCollection.findOne(
+				{ url: job.url },
+				{ sort: { postedAt: -1, _createdAt: -1 } }
+			);
 
 			if (existingJob) {
-				return res.status(400).json({ error: 'Job with this URL has been posted recently' });
-			}
-		}
+				const existingTimestamp = extractJobTimestamp(existingJob);
+				const newJobTimestamp = toValidDate(postedAt);
 
-		const now = new Date();
-
-		const createdAt = now.toISOString();
-
-		let postedAt = createdAt;
-		if (job.postedAgo && typeof job.postedAgo === 'string') {
-			const match = job.postedAgo.match(/(\d+)\s+(minute|hour|day)/);
-			if (match) {
-				const value = parseInt(match[1], 10);
-				const unit = match[2];
-				const postedDate = new Date(now);
-				if (unit === 'minute') {
-					postedDate.setMinutes(postedDate.getMinutes() - value);
-				} else if (unit === 'hour') {
-					postedDate.setHours(postedDate.getHours() - value);
-				} else if (unit === 'day') {
-					postedDate.setDate(postedDate.getDate() - value);
+				if (!existingTimestamp || !newJobTimestamp || (newJobTimestamp.getTime() - existingTimestamp.getTime()) < LOOKBACK_WINDOW_MS) {
+					return res.status(400).json({ error: 'Job with this URL has been posted recently' });
 				}
-				postedAt = postedDate.toISOString();
 			}
 		}
 
@@ -133,7 +157,7 @@ export async function getJobsForRule(req, res) {
 		const query = buildMongoQueryForRule(ruleSet);
 
 		// A query that finds nothing
-		if (query._id === null) {
+		if (isMatchNoneQuery(query)) {
 			return res.json({
 				success: true,
 				data: [],
@@ -168,7 +192,7 @@ export async function removeJobsForRule(req, res) {
 		}
 
 		const query = buildMongoQueryForRule(ruleSet);
-		if (query._id === null) {
+		if (isMatchNoneQuery(query)) {
 			return res.status(400).json({
 				success: false,
 				error: 'Cannot remove jobs for this rule due to unsupported logic (e.g., mixed operators or XOR).',
@@ -199,24 +223,28 @@ export async function getJobs(req, res) {
 		}
 		const query = { $and: [] };
 
-		if (q) {
-			query.$and.push({ title: { $regex: q, $options: 'i' } });
-		}
+		const titleFilter = buildMongoCaseInsensitiveRegexFilter(q);
+		if (titleFilter) query.$and.push({ title: titleFilter });
 
 		for (const key in filters) {
 			if (Object.hasOwnProperty.call(filters, key)) {
+				if (key.startsWith('$')) continue;
 				const value = filters[key];
 				if (!value) continue;
 
 				if (key === 'company.tags' && typeof value === 'string') {
 					const tags = value.split(',').map(s => s.trim()).filter(Boolean);
 					if (tags.length) {
-						query.$and.push({ [key]: { $all: tags.map(tag => new RegExp(tag, 'i')) } });
+						const tagRegexes = tags.map(tag => buildSafeRegExp(tag)).filter(Boolean);
+						if (tagRegexes.length) {
+							query.$and.push({ [key]: { $all: tagRegexes } });
+						}
 					}
 				} else if (key === 'details.remote' || key === 'details.time') {
 					query.$and.push({ [key]: value });
 				} else if (typeof value === 'string') {
-					query.$and.push({ [key]: { $regex: value, $options: 'i' } });
+					const filter = buildMongoCaseInsensitiveRegexFilter(value);
+					if (filter) query.$and.push({ [key]: filter });
 				}
 			}
 		}
@@ -234,10 +262,12 @@ export async function getJobs(req, res) {
 
 		const knownSources = JobSource;
 
-		// Build regexes
-		let selectedKnown = jobSourceItem.filter(src => src !== 'Other');
-		let jobSourceQuery = "^https://[^/]*(" + selectedKnown.join('|') + ")\.";
-		let knownSourcesRegex = "^https://[^/]*(" + knownSources.join('|') + ")\.";
+		// Build regexes (treat user-provided strings as literals, not regex patterns)
+		const selectedKnown = jobSourceItem.filter(src => src !== 'Other');
+		const selectedKnownPattern = buildRegexAlternation(selectedKnown);
+		const knownSourcesPattern = buildRegexAlternation(knownSources);
+		const jobSourceQuery = `^https://[^/]*(${selectedKnownPattern})\\.`;
+		const knownSourcesRegex = `^https://[^/]*(${knownSourcesPattern})\\.`;
 
 		//{"applyLink": {"$regex": "https://.*(workday).*"}}
 

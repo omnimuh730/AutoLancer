@@ -22,6 +22,7 @@ export function useAgentState() {
 	const [executionResults, setExecutionResults] = useState(null);
 	const [error, setError] = useState('');
 	const [isLoading, setIsLoading] = useState(false);
+	const [executableActions, setExecutableActions] = useState([]);
 	//	const [isSchemaDialogOpen, setIsSchemaDialogOpen] = useState(false);
 
 	return {
@@ -40,6 +41,7 @@ export function useAgentState() {
 		executionResults, setExecutionResults,
 		error, setError,
 		isLoading, setIsLoading,
+		executableActions, setExecutableActions,
 		//		isSchemaDialogOpen, setIsSchemaDialogOpen
 	};
 }

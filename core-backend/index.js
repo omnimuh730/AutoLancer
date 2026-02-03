@@ -8,9 +8,17 @@ const fs = require('fs');
 const path = require('path');
 
 const { analyzeData } = require('./core/analyze');
+const { identifyFieldIntent } = require('./core/staticfieldDetector');
+const { getProfileValue } = require('./core/getFunctionCalling');
+const { generateDynamicAnswer } = require('./core/aiService');
+const { listProfiles, getProfileByIdentifier, getRawProfilesFile, PROFILE_PATH } = require('./core/profileLoader');
 
 const app = express();
 const port = process.env.PORT || 3001;
+
+const REQUEST_LIMIT_PER_SECOND = 10;
+const DEFAULT_RESUME_PATH = 'D:\\Job Hunting\\Profiles\\Bi Ge\\Resume\\AI\\Bi Ge.pdf';
+const DEFAULT_COVER_LETTER_PATH = 'D:\\Job Hunting\\Profiles\\Bi Ge\\Resume\\Cover Letter.pdf';
 
 app.use(cors());
 app.use(express.json({ limit: '5mb' })); // Increase limit for potentially larger schemas
@@ -18,15 +26,75 @@ app.use(express.json({ limit: '5mb' })); // Increase limit for potentially large
 // Simple bridge to MCP profile data so the Agent can fetch it
 app.get('/profile', (req, res) => {
 	try {
-		const profilePath = path.resolve(__dirname, '..', 'mcp-profile-server', 'src', 'data', 'profile.json');
-		const content = fs.readFileSync(profilePath, 'utf8');
-		res.setHeader('Content-Type', 'application/json');
-		res.send(content);
+		const profileIdentifier = req.query?.identifier || null;
+		if (profileIdentifier) {
+			const profile = getProfileByIdentifier(profileIdentifier);
+			if (!profile) return res.status(404).json({ error: 'Profile not found' });
+			return res.json(profile);
+		}
+		// Default: return raw file
+		res.json(getRawProfilesFile());
 	} catch (e) {
 		console.error('Failed to load profile data from MCP server folder', e);
 		res.status(500).send('Failed to load profile data');
 	}
 });
+
+// GET /profiles -> list of selectable profiles (identifier + label)
+app.get('/profiles', (req, res) => {
+	try {
+		const profiles = listProfiles();
+		res.json({ profiles });
+	} catch (e) {
+		console.error('Failed to list profiles', e);
+		res.status(500).json({ error: 'Failed to list profiles', profilePath: PROFILE_PATH });
+	}
+});
+
+// Helper: Pause execution for X milliseconds
+const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+/**
+ * PROCESS WITH RATE LIMIT
+ * Starts requests in parallel but staggers their start times to respect API limits.
+ * 
+ * @param {Array} items - The list of components to analyze
+ * @param {Function} workerFn - The async function to call for each item
+ * @param {Number} reqPerSecond - Max requests to start per second (default REQUEST_LIMIT_PER_SECOND)
+ */
+async function processWithRateLimit(items, workerFn, reqPerSecond = REQUEST_LIMIT_PER_SECOND) {
+	const results = new Array(items.length); // Pre-allocate to ensure order
+	const delayBetweenRequests = 1000 / reqPerSecond; // e.g., 200ms
+
+	// Create an array of promises that start with a delay
+	const promises = items.map((item, index) => {
+		return new Promise(async (resolve) => {
+			// 1. Stagger the start time
+			// Item 0 waits 0ms, Item 1 waits 200ms, Item 2 waits 400ms...
+			await wait(index * delayBetweenRequests);
+
+			// 2. Execute the worker (Async)
+			// We don't await this inside the map so the loop continues immediately
+			try {
+				// console.log(`[Index ${index}] Starting analysis...`);
+				const result = await workerFn(item);
+				results[index] = result; // Store result in the specific index to preserve order
+			} catch (err) {
+				console.error(`[Index ${index}] Error processing:`, err);
+				results[index] = {
+					summary: "Error during processing",
+					error: err.message,
+					action_suggestion: null
+				};
+			}
+			resolve(); // Mark this promise as "launched and completed"
+		});
+	});
+
+	// 3. Wait for ALL logic to complete
+	await Promise.all(promises);
+	return results;
+}
 
 // --- MCP client (lazy) ---
 let mcpClient = null;
@@ -35,11 +103,11 @@ async function ensureMcp() {
 	if (mcpClient) return mcpClient;
 	const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
 	const { StdioClientTransport } = await import('@modelcontextprotocol/sdk/client/stdio.js');
-	const serverPath = path.resolve(__dirname, '..', 'mcp-profile-server', 'src', 'index.js');
+	const serverPath = path.resolve(__dirname, '..', 'mcp-server', 'src', 'index.js');
 	mcpTransport = new StdioClientTransport({
 		command: process.execPath, // node
 		args: [serverPath],
-		cwd: path.resolve(__dirname, '..', 'mcp-profile-server')
+		cwd: path.resolve(__dirname, '..', 'mcp-server')
 	});
 	mcpClient = new Client({ name: 'spirit-backend', version: '1.0.0' });
 	await mcpClient.connect(mcpTransport);
@@ -58,11 +126,69 @@ app.post('/resume', async (req, res) => {
 		console.error('Error calling MCP resume tool', e);
 		// Fallback to default
 		res.json({
-			profile: 'Python + React',
-			resumePath: 'D:\\Job Hunting\\Profiles\\Bryan Reyes\\Python + React\\Bryan Reyes.pdf',
-			coverLetterPath: 'D:\\Job Hunting\\Profiles\\Bryan Reyes\\Cover Letter.pdf',
+			profile: 'Bi Ge',
+			resumePath: DEFAULT_RESUME_PATH,
+			coverLetterPath: DEFAULT_COVER_LETTER_PATH,
 			basedOn: 'fallback'
 		});
+	}
+});
+
+// POST /local-file { path } -> { fileName, mimeType, base64, size }
+// Used by the browser extension to build a File object for <input type="file"> uploads.
+app.post('/local-file', async (req, res) => {
+	try {
+		const filePathRaw = req.body?.path;
+		if (!filePathRaw || typeof filePathRaw !== 'string') {
+			return res.status(400).json({ error: 'Missing "path" in request body.' });
+		}
+
+		const normalized = path.normalize(filePathRaw);
+		if (!path.isAbsolute(normalized)) {
+			return res.status(400).json({ error: 'Path must be absolute.' });
+		}
+
+		const allowedRoots = String(process.env.AUTOLANCER_ALLOWED_FILE_ROOTS || 'D:\\Job Hunting\\Profiles\\')
+			.split(';')
+			.map((p) => p.trim())
+			.filter(Boolean)
+			.map((p) => path.normalize(p));
+
+		const normalizedLower = normalized.toLowerCase();
+		const withinAllowedRoot = allowedRoots.some((root) => normalizedLower.startsWith(String(root).toLowerCase()));
+		if (!withinAllowedRoot) {
+			return res.status(403).json({ error: 'Path is not within allowed roots.', allowedRoots });
+		}
+
+		const ext = path.extname(normalized).toLowerCase();
+		const allowedExts = new Set(['.pdf', '.doc', '.docx', '.txt', '.rtf']);
+		if (!allowedExts.has(ext)) {
+			return res.status(400).json({ error: `Unsupported file extension: ${ext}` });
+		}
+
+		const file = fs.readFileSync(normalized);
+		const fileName = path.basename(normalized);
+		const mimeType = ext === '.pdf'
+			? 'application/pdf'
+			: ext === '.doc'
+				? 'application/msword'
+				: ext === '.docx'
+					? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+					: ext === '.txt'
+						? 'text/plain'
+						: ext === '.rtf'
+							? 'application/rtf'
+							: 'application/octet-stream';
+
+		return res.json({
+			fileName,
+			mimeType,
+			base64: file.toString('base64'),
+			size: file.length
+		});
+	} catch (e) {
+		console.error('Failed to read local file', e);
+		return res.status(500).json({ error: 'Failed to read local file.' });
 	}
 });
 
@@ -80,9 +206,37 @@ app.post('/qa', async (req, res) => {
 	}
 });
 
+// POST /autofill-field { context, jobDescription? }
+app.post('/autofill-field', async (req, res) => {
+	try {
+		const context = req.body?.context || '';
+		const jobDescription = req.body?.jobDescription || '';
+		const profileIdentifier = req.body?.profileIdentifier || '';
+
+		if (!context || typeof context !== 'string') {
+			return res.status(400).json({ error: 'Missing context in request body' });
+		}
+
+		const normalizedContext = context.toLowerCase();
+		const intent = identifyFieldIntent(normalizedContext);
+
+		if (intent?.isStatic && intent.field) {
+			const value = getProfileValue(intent.field, { profileIdentifier }) || '';
+			return res.json({ mode: 'static', field: intent.field, value });
+		}
+
+		const ai = await generateDynamicAnswer(context, { jobDescription, profileIdentifier });
+		return res.json({ mode: 'ai', value: ai.answer, usage: ai.usage || null });
+	} catch (e) {
+		console.error('Error generating autofill answer', e);
+		return res.status(500).json({ error: 'Failed to generate autofill answer' });
+	}
+});
+
 app.post('/analyze', async (req, res) => {
-	//	console.log('Received /analyze request', req.body.userInput);
 	const payload = req.body.userInput || null;
+	const jobDescription = req.body?.jobDescription || '';
+	const profileIdentifier = req.body?.profileIdentifier || '';
 
 	if (!payload) {
 		return res.status(400).json({ error: 'Missing userInput in request body' });
@@ -90,24 +244,71 @@ app.post('/analyze', async (req, res) => {
 
 	const analyzeComponentData = JSON.parse(payload);
 	//	console.log(analyzeComponentData);
-	console.log(`Received ${analyzeComponentData.components.length} characters of analyzeComponentData`)
 
-	analyzeResultSet = [];
+	// --- 1. START TIMER ---
+	const startTime = Date.now();
+	console.log(`\n=== Analyze Batch Started: ${analyzeComponentData.components.length} Items ===`);
 
-	for (const component of analyzeComponentData.components) {
-		const analyzeResult = await analyzeData(component);
+	let totalInputTokens = 0;
+	let totalOutputTokens = 0;
 
-		analyzeResultSet.push({
-			componentName: component.name,
-			result: analyzeResult
-		});
-	}
+	// --- 2. DEFINE WORKER ---
+	const worker = async (component) => {
+		const result = await analyzeData(component, { jobDescription, profileIdentifier });
 
-	console.log('Analyze endpoint processing complete');
+		// Accumulate cost metrics safely
+		if (result.aiUsage) {
+			totalInputTokens += (result.aiUsage.prompt_tokens || 0);
+			totalOutputTokens += (result.aiUsage.completion_tokens || 0);
+		}
+		return result;
+	};
 
-	return res.json({ message: 'Analyze endpoint received data successfully', payload: analyzeResultSet });
+	// --- 3. EXECUTE WITH RATE LIMIT ---
+	// 5 requests per second = starts a new request every 200ms
+	const analyzeResultSet = await processWithRateLimit(
+		analyzeComponentData.components,
+		worker,
+		5
+	);
+
+	// --- 4. END TIMER & CALCULATE COST ---
+	const endTime = Date.now();
+	const durationSeconds = ((endTime - startTime) / 1000).toFixed(2);
+
+	// Pricing (Example: GPT-4o-mini)
+	// Input: $0.15 / 1M tokens | Output: $0.60 / 1M tokens (Adjust as needed)
+	const PRICE_PER_1M_INPUT = 0.15;
+	const PRICE_PER_1M_OUTPUT = 0.60;
+
+	const inputCost = (totalInputTokens / 1000000) * PRICE_PER_1M_INPUT;
+	const outputCost = (totalOutputTokens / 1000000) * PRICE_PER_1M_OUTPUT;
+	const totalCost = inputCost + outputCost;
+
+	console.log(`=== Analyze Batch Complete ===`);
+	console.log(`Time Taken:    ${durationSeconds}s`);
+	console.log(`Requests:      ${analyzeComponentData.components.length}`);
+	console.log(`Tokens Used:   ${totalInputTokens} (In) / ${totalOutputTokens} (Out)`);
+	console.log(`Est. Cost:     $${totalCost.toFixed(6)}`);
+	console.log(`==============================\n`);
+
+	return res.json({
+		message: 'Analyze endpoint received data successfully',
+		payload: analyzeResultSet,
+		meta: {
+			performance: {
+				durationSeconds: durationSeconds,
+				requestsPerSecondConfig: REQUEST_LIMIT_PER_SECOND
+			},
+			cost: {
+				inputTokens: totalInputTokens,
+				outputTokens: totalOutputTokens,
+				estimatedPriceUSD: totalCost
+			}
+		}
+	});
 });
 
-app.listen(port, () => {
-	console.log(`Server is running on http://localhost:${port}`);
+app.listen(port, process.env.HOST || 'localhost', () => {
+	console.log(`Server running on http://${process.env.HOST || 'localhost'}:${port}`);
 });

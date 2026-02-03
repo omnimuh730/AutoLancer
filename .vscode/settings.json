@@ -1,9 +1,6 @@
 {
 	"eslint.enable": true,
-	"eslint.validate": [
-		"javascript",
-		"javascriptreact"
-	],
+	"eslint.validate": ["javascript", "javascriptreact"],
 	"editor.codeActionsOnSave": {
 		"source.fixAll.eslint": "explicit"
 	},
@@ -73,5 +70,6 @@
 	},
 	"files.associations": {
 		"*.config.js": "javascript"
-	}
+	},
+	"chatgpt.openOnStartup": true
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useLayoutEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import useNotification from '../../api/useNotification';
 // CHANGE 1: Import the Collapse component from MUI
 import { Container, Stack, Typography, CircularProgress, Alert, Box, Collapse } from "@mui/material";
@@ -21,14 +21,11 @@ const getJobId = (job) => {
 	return typeof id === 'object' && id.$oid ? id.$oid : String(id);
 };
 
-const cloneJob = (job) => JSON.parse(JSON.stringify(job));
 const normalizeId = (value) => {
 	if (!value) return '';
 	if (typeof value === 'object' && value.$oid) return value.$oid;
 	return String(value);
 };
-
-const cloneStatusArray = (status) => Array.isArray(status) ? status.map(entry => ({ ...entry })) : [];
 
 function JobListingsPage() {
 	const [jobs, setJobs] = useState([]);
@@ -42,7 +39,6 @@ function JobListingsPage() {
 	const { post: actionPost } = actionApi;
 	const [jobLoading, setJobLoading] = useState(false);
 	const [jobError, setJobError] = useState(null);
-	const prefetchedPagesRef = useRef(new Map());
 
 	const [selectedJob, setSelectedJob] = useState(null);
 	const [userSkills, setUserSkills] = useState([]);
@@ -54,113 +50,12 @@ function JobListingsPage() {
 	const { applier } = useApplier();
 	const applierId = applier?._id ? normalizeId(applier._id) : null;
 
-	const getStatusEntryForApplier = useCallback((job) => {
-		if (!applierId || !job) return null;
-		const entries = Array.isArray(job.status) ? job.status : [];
-		return entries.find(entry => normalizeId(entry.applier) === applierId) || null;
-	}, [applierId]);
-
-	const jobMatchesCurrentFilters = useCallback((job) => {
-		if (!job) return false;
-		if (!applierId) return true;
-		const entry = getStatusEntryForApplier(job);
-
-		if (filters.applied === false) {
-			return !entry;
-		}
-
-		if (filters.applied === true) {
-			if (!entry) return false;
-			if (!filters.status) return true;
-			const hasSchedule = !!entry.scheduledDate;
-			const hasDecline = !!entry.declinedDate;
-			if (filters.status === 'Applied') {
-				return !hasSchedule && !hasDecline;
-			}
-			if (filters.status === 'Scheduled') {
-				return hasSchedule;
-			}
-			if (filters.status === 'Declined') {
-				return hasDecline;
-			}
-		}
-
-		return true;
-	}, [applierId, filters, getStatusEntryForApplier]);
-
-	const replaceJob = useCallback((jobId, updater) => {
-		if (!jobId || typeof updater !== 'function') return;
-		setJobs(prev => prev.map(job => {
-			const currentId = getJobId(job);
-			if (currentId !== jobId) return job;
-			const nextJob = updater(job);
-			return nextJob || job;
-		}));
-		prefetchedPagesRef.current.forEach((value, key) => {
-			const idx = Array.isArray(value?.data) ? value.data.findIndex(job => getJobId(job) === jobId) : -1;
-			if (idx === -1) return;
-			const updated = updater(value.data[idx]);
-			if (!updated) return;
-			const newData = value.data.slice();
-			newData[idx] = updated;
-			prefetchedPagesRef.current.set(key, { ...value, data: newData });
-		});
-	}, []);
-
-	const removeJobsLocally = useCallback((ids) => {
-		if (!Array.isArray(ids) || !ids.length) return;
-		const idSet = new Set(ids);
-		let removedCount = 0;
-		setJobs(prev => {
-			if (!Array.isArray(prev) || !prev.length) return prev;
-			const next = prev.filter(job => {
-				const shouldRemove = idSet.has(getJobId(job));
-				if (shouldRemove) removedCount += 1;
-				return !shouldRemove;
-			});
-			return next;
-		});
-		setSelectedIds(prev => prev.filter(id => !idSet.has(id)));
-		prefetchedPagesRef.current.forEach((value, key) => {
-			if (!Array.isArray(value?.data)) return;
-			const newData = value.data.filter(job => !idSet.has(getJobId(job)));
-			if (newData.length !== value.data.length) {
-				prefetchedPagesRef.current.set(key, { ...value, data: newData });
-			}
-		});
-		if (removedCount) {
-			setPagination(prev => {
-				const limit = prev.limit || 1;
-				const total = Math.max(0, (prev.total || 0) - removedCount);
-				const totalPages = Math.max(1, Math.ceil(total / limit));
-				const page = Math.min(prev.page, totalPages);
-				const nextPagination = { ...prev, total, totalPages, page };
-				prefetchedPagesRef.current.forEach((value, key) => {
-					if (!value) return;
-					prefetchedPagesRef.current.set(key, {
-						...value,
-						pagination: { ...(value.pagination || {}), total, totalPages }
-					});
-				});
-				return nextPagination;
-			});
-		}
-	}, []);
-
-	const syncJobWithCurrentView = useCallback((jobId, nextJob) => {
-		if (!jobId || !nextJob) return;
-		if (jobMatchesCurrentFilters(nextJob)) {
-			replaceJob(jobId, () => nextJob);
-		} else {
-			removeJobsLocally([jobId]);
-		}
-	}, [jobMatchesCurrentFilters, removeJobsLocally, replaceJob]);
-
 	const fetchJobs = useCallback(async (pageOverride = pagination.page, { silent = false } = {}) => {
+		const pageToFetch = typeof pageOverride === 'number' ? pageOverride : pagination.page;
 		const body = {
 			q: searchQuery,
 			sort: sortOption,
-			page: pageOverride,
+			page: pageToFetch,
 			limit: pagination.limit,
 			applierName: applier?.name,
 			...filters
@@ -171,10 +66,9 @@ function JobListingsPage() {
 		}
 		try {
 			const res = await jobPost('/jobs/list', body);
-			if (res && res.success) {
-				prefetchedPagesRef.current.set(pageOverride, { data: res.data, pagination: res.pagination });
-				if (!silent && pageOverride === pagination.page) {
-					setJobs(res.data);
+			if (res?.success) {
+				setJobs(res.data || []);
+				if (res.pagination) {
 					setPagination(res.pagination);
 				}
 			}
@@ -203,40 +97,9 @@ function JobListingsPage() {
 		}
 	}, [jobGet]);
 
-	useLayoutEffect(() => {
-		prefetchedPagesRef.current.clear();
-		setJobs(prev => (prev.length ? [] : prev));
-	}, [searchQuery, sortOption, filters, pagination.limit, applierId]);
-
 	useEffect(() => {
-		let cancelled = false;
-		const load = async () => {
-			const cached = prefetchedPagesRef.current.get(pagination.page);
-			if (cached) {
-				setJobs(cached.data);
-				setPagination(prev => ({ ...cached.pagination, page: pagination.page }));
-				// Prefetch next page silently
-				const nextPage = pagination.page + 1;
-				if (nextPage <= (cached.pagination?.totalPages || pagination.totalPages)) {
-					fetchJobs(nextPage, { silent: true }).catch(() => { });
-				}
-				return;
-			}
-			try {
-				const res = await fetchJobs(pagination.page);
-				if (!cancelled && res?.pagination) {
-					const nextPage = pagination.page + 1;
-					if (nextPage <= res.pagination.totalPages) {
-						fetchJobs(nextPage, { silent: true }).catch(() => { });
-					}
-				}
-			} catch (err) {
-				// handled in fetchJobs
-			}
-		};
-		load();
-		return () => { cancelled = true; };
-	}, [pagination.page, fetchJobs, pagination.totalPages]);
+		fetchJobs(pagination.page).catch(() => { });
+	}, [pagination.page, fetchJobs]);
 
 	useEffect(() => {
 		fetchUserSkills();
@@ -273,25 +136,15 @@ function JobListingsPage() {
 			notification.error('Select an applier before applying.');
 			return;
 		}
-		const previousSnapshot = cloneJob(job);
-		const optimisticEntry = { applier: applierId, appliedDate: new Date().toISOString() };
-		replaceJob(strId, (current) => {
-			const statusList = cloneStatusArray(current.status);
-			if (!statusList.some(entry => normalizeId(entry.applier) === applierId)) {
-				statusList.push(optimisticEntry);
-			}
-			return { ...current, status: statusList };
-		});
 		try {
 			const res = await actionPost(`/jobs/${strId}/apply`, { applied: true, applierName: applier?.name });
-			if (res?.success && res.data) {
-				syncJobWithCurrentView(strId, res.data);
+			if (res?.success) {
+				await fetchJobs(pagination.page, { silent: true });
 			} else {
 				throw new Error('Apply API failed');
 			}
 		} catch (e) {
 			console.warn('Failed to mark job applied', e);
-			replaceJob(strId, () => previousSnapshot);
 			notification.error('Failed to mark job as applied');
 		}
 	};
@@ -302,37 +155,16 @@ function JobListingsPage() {
 			notification.error('Select an applier before updating status.');
 			return;
 		}
-		const previousSnapshot = cloneJob(job);
-		replaceJob(strId, (current) => {
-			const statusList = cloneStatusArray(current.status);
-			const idx = statusList.findIndex(entry => normalizeId(entry.applier) === applierId);
-			if (idx === -1) return current;
-			const now = new Date().toISOString();
-			const updatedEntry = { ...statusList[idx] };
-			if (status === 'Declined') {
-				updatedEntry.declinedDate = now;
-				delete updatedEntry.scheduledDate;
-			} else if (status === 'Scheduled') {
-				updatedEntry.scheduledDate = now;
-				delete updatedEntry.declinedDate;
-			} else if (status === 'Applied') {
-				delete updatedEntry.declinedDate;
-				delete updatedEntry.scheduledDate;
-			}
-			statusList[idx] = updatedEntry;
-			return { ...current, status: statusList };
-		});
 		try {
 			const res = await actionPost(`/jobs/${strId}/status`, { status, applierName: applier?.name });
-			if (res?.success && res.data) {
-				syncJobWithCurrentView(strId, res.data);
+			if (res?.success) {
+				await fetchJobs(pagination.page, { silent: true });
 				notification.success(`Job status updated to ${status}`);
 			} else {
 				throw new Error('Failed to update status');
 			}
 		} catch (e) {
 			console.warn('Failed to update job status', e);
-			replaceJob(strId, () => previousSnapshot);
 			notification.error('Failed to update job status');
 		}
 	};
@@ -343,22 +175,16 @@ function JobListingsPage() {
 			notification.error('Select an applier before unapplying.');
 			return;
 		}
-		const previousSnapshot = cloneJob(job);
-		replaceJob(strId, (current) => {
-			const statusList = cloneStatusArray(current.status).filter(entry => normalizeId(entry.applier) !== applierId);
-			return { ...current, status: statusList };
-		});
 		try {
 			const res = await actionPost(`/jobs/${strId}/unapply`, { applierName: applier?.name });
-			if (res?.success && res.data) {
-				syncJobWithCurrentView(strId, res.data);
+			if (res?.success) {
+				await fetchJobs(pagination.page, { silent: true });
 				notification.success('Successfully unapplied from job');
 			} else {
 				throw new Error('Failed to unapply');
 			}
 		} catch (e) {
 			console.warn('Failed to unapply from job', e);
-			replaceJob(strId, () => previousSnapshot);
 			notification.error('Failed to unapply from job');
 		}
 	};
@@ -374,21 +200,17 @@ function JobListingsPage() {
 
 	const handleRemoveSelected = async () => {
 		if (!selectedIds.length) return;
-		const previousJobs = jobs;
-		const previousSelected = selectedIds;
-		removeJobsLocally(selectedIds);
 		try {
 			const res = await actionPost('/jobs/remove', { ids: selectedIds });
 			if (res && res.success) {
 				notification.success(`Removed ${res.deletedCount || 0} job(s)`);
 				setSelectedIds([]);
+				await fetchJobs(pagination.page, { silent: true });
 			} else {
 				throw new Error('Failed to remove');
 			}
 		} catch (err) {
 			console.warn('Failed to remove jobs', err);
-			setJobs(previousJobs);
-			setSelectedIds(previousSelected);
 			notification.error('Failed to remove jobs');
 		}
 	};

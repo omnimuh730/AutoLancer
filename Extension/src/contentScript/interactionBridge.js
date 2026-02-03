@@ -53,7 +53,34 @@ export const executeAction = (tag, property, pattern, order, action, actionValue
 
 export const handleAction = executeAction;
 
-export const highlightInteractables = () => {
-	chrome.runtime.sendMessage({ action: 'highlightInteractables' });
+export const executeActionsSequence = (actions, runId) => {
+	const payload = {
+		runId: runId || null,
+		actions: Array.isArray(actions) ? actions : [],
+	};
+
+	chrome.runtime.sendMessage({
+		action: "executeActionsSequence",
+		payload,
+	});
+};
+
+export const executeActionsParallel = (actions, runId) => {
+	const payload = {
+		runId: runId || null,
+		actions: Array.isArray(actions) ? actions : [],
+	};
+
+	chrome.runtime.sendMessage({
+		action: "executeActionsParallel",
+		payload,
+	});
+};
+
+export const highlightInteractables = (runId) => {
+	chrome.runtime.sendMessage({
+		action: 'highlightInteractables',
+		payload: { runId }
+	});
 };
 

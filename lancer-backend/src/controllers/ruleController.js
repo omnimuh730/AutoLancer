@@ -1,4 +1,5 @@
 import { rulesCollection } from '../db/mongo.js';
+import { invalidateRulesCache } from '../utils/ruleMatcher.js';
 
 export async function getRules(req, res) {
 	try {
@@ -24,6 +25,7 @@ export async function createRule(req, res) {
 
 		const result = await rulesCollection.insertOne(ruleSet);
 		const createdRule = { ...ruleSet, _id: result.insertedId };
+		invalidateRulesCache();
 		res.status(201).json(createdRule);
 	} catch (error) {
 		console.error('Failed to create rule', error);
@@ -70,6 +72,7 @@ export async function updateRule(req, res) {
 			return res.status(404).json({ error: 'Rule not found' });
 		}
 
+		invalidateRulesCache();
 		res.status(200).json(normalizedRule);
 	} catch (error) {
 		console.error('Failed to update rule', error);
@@ -84,6 +87,7 @@ export async function deleteRule(req, res) {
 		if (result.deletedCount === 0) {
 			return res.status(404).json({ error: 'Rule not found' });
 		}
+		invalidateRulesCache();
 		res.status(200).json({ message: 'Rule deleted successfully' });
 	} catch (error) {
 		console.error('Failed to delete rule', error);

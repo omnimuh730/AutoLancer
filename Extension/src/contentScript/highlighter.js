@@ -1,9 +1,25 @@
 import { findElements } from './elementFinder';
+import { disableAutolancerInputEffects } from './inputEffects';
 
 let highlightCounter = 1;
 let highlightLabels = [];
 
 export function clearHighlights() {
+	document.querySelectorAll('[data-autolancer-highlight]').forEach((element) => {
+		const variant = element.getAttribute('data-autolancer-highlight');
+		element.classList.remove('autolancer-highlight-base');
+		if (variant) {
+			element.classList.remove(`autolancer-highlight-${variant}`);
+		}
+		if (element.hasAttribute('data-autolancer-original-position')) {
+			element.style.position = element.getAttribute('data-autolancer-original-position') || '';
+		}
+		element.style.removeProperty('--autolancer-border-radius');
+		element.removeAttribute('data-autolancer-original-position');
+		element.removeAttribute('data-autolancer-highlight');
+	});
+	disableAutolancerInputEffects();
+
 	highlightLabels.forEach((label) => label.remove());
 	highlightLabels = [];
 	document.querySelectorAll("[data-highlighter-outline]").forEach((el) => {
@@ -12,6 +28,11 @@ export function clearHighlights() {
 		el.removeAttribute("data-highlighter-outline");
 		el.removeAttribute("data-highlighter-original-outline");
 		el.removeAttribute("data-highlighter-id");
+	});
+	document.querySelectorAll('[data-highlighter-parent]').forEach((element) => {
+		element.removeAttribute('data-highlighter-parent');
+		element.style.outline = '';
+		element.style.outlineOffset = '';
 	});
 	highlightCounter = 1;
 }

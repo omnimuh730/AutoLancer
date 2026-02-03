@@ -26,15 +26,15 @@ import { Add, Delete, Search, Edit } from '@mui/icons-material';
 import useApi from '../../api/useApi';
 
 const FIELD_OPTIONS = [
-	{ value: 'companyName', label: 'Company Name' },
 	{ value: 'title', label: 'Job Title' },
+	{ value: 'companyName', label: 'Company Name' },
 ];
 const OPERATOR_OPTIONS = [
-	{ value: 'equals', label: 'Equals' },
 	{ value: 'contains', label: 'Contains' },
+	{ value: 'equals', label: 'Equals' },
 	{ value: 'pattern', label: 'Pattern' },
 ];
-const LOGICAL_OPERATORS = ['AND', 'OR', 'XOR', 'NOR'];
+const LOGICAL_OPERATORS = ['OR', 'AND', 'XOR', 'NOR'];
 
 const getJobId = (job) => {
 	if (!job) return null;
@@ -57,7 +57,7 @@ const createNewRule = () => ({
 export default function RuleSettingsPage() {
 	const [savedRules, setSavedRules] = useState([]);
 	const [rules, setRules] = useState([createNewRule()]);
-	const [logicalOperators, setLogicalOperators] = useState(['AND']);
+	const [logicalOperators, setLogicalOperators] = useState(['OR']);
 	const [isSaveDialogOpen, setSaveDialogOpen] = useState(false);
 	const [newRuleName, setNewRuleName] = useState('');
 	const [isSearchDialogOpen, setSearchDialogOpen] = useState(false);
@@ -94,7 +94,7 @@ export default function RuleSettingsPage() {
 	const handleAddRule = () => {
 		setRules([...rules, createNewRule()]);
 		if (rules.length > 0) {
-			setLogicalOperators([...logicalOperators, 'AND']);
+			setLogicalOperators([...logicalOperators, 'OR']);
 		}
 	};
 
@@ -138,7 +138,7 @@ export default function RuleSettingsPage() {
 			handleCloseSaveDialog();
 			// Reset the editor
 			setRules([createNewRule()]);
-			setLogicalOperators(['AND']);
+			setLogicalOperators(['OR']);
 		} catch (error) {
 			console.error('Failed to save rule', error);
 		}
@@ -279,7 +279,7 @@ export default function RuleSettingsPage() {
 	const handleAddEditedRule = () => {
 		setEditedRules([...editedRules, createNewRule()]);
 		if (editedRules.length > 0) {
-			setEditedLogicalOperators([...editedLogicalOperators, 'AND']);
+			setEditedLogicalOperators([...editedLogicalOperators, 'OR']);
 		}
 	};
 

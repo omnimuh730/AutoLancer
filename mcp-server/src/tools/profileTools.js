@@ -39,10 +39,10 @@ export function registerProfileTools(mcpServer, profile) {
 	mcpServer.registerTool("getLocation", { description: "Return only the city and state location." }, async () => asStructured(profile.personal.location));
 
 	// Contact (atomic)
-	mcpServer.registerTool("getEmail", { description: "Return only Bryan’s email address." }, async () => asStructured(profile.contact.email));
-	mcpServer.registerTool("getPhoneNumber", { description: "Return only Bryan’s phone number." }, async () => asStructured(profile.contact.phone));
-	mcpServer.registerTool("getLinkedIn", { description: "Return only Bryan’s LinkedIn profile URL." }, async () => asStructured(profile.contact.linkedin));
-	mcpServer.registerTool("getGitHub", { description: "Return only Bryan’s GitHub URL." }, async () => asStructured(profile.contact.github));
+	mcpServer.registerTool("getEmail", { description: "Return only the candidate's email address." }, async () => asStructured(profile.contact.email));
+	mcpServer.registerTool("getPhoneNumber", { description: "Return only the candidate's phone number." }, async () => asStructured(profile.contact.phone));
+	mcpServer.registerTool("getLinkedIn", { description: "Return only the candidate's LinkedIn profile URL." }, async () => asStructured(profile.contact.linkedin));
+	mcpServer.registerTool("getGitHub", { description: "Return only the candidate's GitHub URL." }, async () => asStructured(profile.contact.github));
 
 	// Education (atomic)
 	mcpServer.registerTool("getUniversity", { description: "Return only university name." }, async () => asStructured(profile.education.university));
@@ -63,7 +63,7 @@ export function registerProfileTools(mcpServer, profile) {
 		}
 	);
 
-	// Resume selection for a given job description (currently hardcoded to Python + React)
+	// Resume selection for a given job description
 	mcpServer.registerTool(
 		"resumeForJobDescription",
 		{
@@ -71,10 +71,10 @@ export function registerProfileTools(mcpServer, profile) {
 			inputSchema: z.object({ jobDescription: z.string().optional().describe("Raw job description text (optional)") })
 		},
 		async ({ jobDescription }) => {
-			const resumePath = "D:\\Job Hunting\\Profiles\\Bryan Reyes\\Python + React\\Bryan Reyes.pdf";
-			const coverLetterPath = "D:\\Job Hunting\\Profiles\\Bryan Reyes\\Cover Letter.pdf";
+			const resumePath = profile?.files?.resumePath || "D:\\Job Hunting\\Profiles\\Bi Ge\\Resume\\AI\\Bi Ge.pdf";
+			const coverLetterPath = profile?.files?.coverLetterPath || "D:\\Job Hunting\\Profiles\\Bi Ge\\Resume\\Cover Letter.pdf";
 			return asStructured({
-				profile: "Python + React",
+				profile: profile?.identifier || "default",
 				resumePath,
 				coverLetterPath,
 				basedOn: jobDescription ? 'jobDescription' : 'default'

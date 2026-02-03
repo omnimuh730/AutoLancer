@@ -14,8 +14,21 @@ function loadProfile() {
   return JSON.parse(content);
 }
 
+function selectProfile(data) {
+  const profiles = Array.isArray(data?.profiles) ? data.profiles : [];
+  if (!profiles.length) return data;
+
+  const requested = String(process.env.AUTOLANCER_PROFILE_IDENTIFIER || '').trim().toLowerCase();
+  if (requested) {
+    const match = profiles.find((p) => String(p?.identifier || '').toLowerCase() === requested);
+    if (match) return match;
+  }
+
+  return profiles[0];
+}
+
 const server = new McpServer({ name: 'profile-mcp-server', version: '2.0.0' });
-const profile = loadProfile();
+const profile = selectProfile(loadProfile());
 
 registerProfileTools(server, profile);
 

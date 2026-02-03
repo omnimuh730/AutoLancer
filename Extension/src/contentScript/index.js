@@ -1,9 +1,23 @@
 import { messageHandler } from './messageHandler';
+import { initJobBidMonitor } from './jobBidMonitor';
 
 /* global chrome */
 
-if (typeof window.contentScriptInjected === 'undefined') {
-	window.contentScriptInjected = true;
+// Guard against duplicate injections (e.g., manifest `content_scripts` + `chrome.scripting.executeScript` fallback).
+// Using a DOM attribute makes this robust even if Chrome runs the script in a fresh isolated world context.
+const INJECT_FLAG_ATTR = 'data-autolancer-content-script-injected';
+const guardRoot = document?.documentElement;
+
+if (!guardRoot?.hasAttribute(INJECT_FLAG_ATTR)) {
+	try {
+		guardRoot?.setAttribute(INJECT_FLAG_ATTR, 'true');
+	} catch {
+		// Best-effort only; still proceed with the previous window-based guard.
+	}
+
+	if (typeof window.contentScriptInjected === 'undefined') {
+		window.contentScriptInjected = true;
+	}
 
 	// Ensure we receive sender and sendResponse and return the boolean
 	chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -14,4 +28,16 @@ if (typeof window.contentScriptInjected === 'undefined') {
 			return false;
 		}
 	});
+
+	try {
+		initJobBidMonitor();
+	} catch (e) {
+		console.error('Failed to boot job bid monitor', e);
+	}
+
+	try {
+		// Intentionally no input effects/cursor injection.
+	} catch (e) {
+		console.error('Input effects disabled', e);
+	}
 }

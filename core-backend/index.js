@@ -17,6 +17,8 @@ const app = express();
 const port = process.env.PORT || 3001;
 
 const REQUEST_LIMIT_PER_SECOND = 10;
+const DEFAULT_RESUME_PATH = 'D:\\Job Hunting\\Profiles\\Bi Ge\\Resume\\AI\\Bi Ge.pdf';
+const DEFAULT_COVER_LETTER_PATH = 'D:\\Job Hunting\\Profiles\\Bi Ge\\Resume\\Cover Letter.pdf';
 
 app.use(cors());
 app.use(express.json({ limit: '5mb' })); // Increase limit for potentially larger schemas
@@ -101,11 +103,11 @@ async function ensureMcp() {
 	if (mcpClient) return mcpClient;
 	const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
 	const { StdioClientTransport } = await import('@modelcontextprotocol/sdk/client/stdio.js');
-	const serverPath = path.resolve(__dirname, '..', 'mcp-profile-server', 'src', 'index.js');
+	const serverPath = path.resolve(__dirname, '..', 'mcp-server', 'src', 'index.js');
 	mcpTransport = new StdioClientTransport({
 		command: process.execPath, // node
 		args: [serverPath],
-		cwd: path.resolve(__dirname, '..', 'mcp-profile-server')
+		cwd: path.resolve(__dirname, '..', 'mcp-server')
 	});
 	mcpClient = new Client({ name: 'spirit-backend', version: '1.0.0' });
 	await mcpClient.connect(mcpTransport);
@@ -124,11 +126,69 @@ app.post('/resume', async (req, res) => {
 		console.error('Error calling MCP resume tool', e);
 		// Fallback to default
 		res.json({
-			profile: 'Python + React',
-			resumePath: 'D:\\Job Hunting\\Profiles\\Bryan Reyes\\Python + React\\Bryan Reyes.pdf',
-			coverLetterPath: 'D:\\Job Hunting\\Profiles\\Bryan Reyes\\Cover Letter.pdf',
+			profile: 'Bi Ge',
+			resumePath: DEFAULT_RESUME_PATH,
+			coverLetterPath: DEFAULT_COVER_LETTER_PATH,
 			basedOn: 'fallback'
 		});
+	}
+});
+
+// POST /local-file { path } -> { fileName, mimeType, base64, size }
+// Used by the browser extension to build a File object for <input type="file"> uploads.
+app.post('/local-file', async (req, res) => {
+	try {
+		const filePathRaw = req.body?.path;
+		if (!filePathRaw || typeof filePathRaw !== 'string') {
+			return res.status(400).json({ error: 'Missing "path" in request body.' });
+		}
+
+		const normalized = path.normalize(filePathRaw);
+		if (!path.isAbsolute(normalized)) {
+			return res.status(400).json({ error: 'Path must be absolute.' });
+		}
+
+		const allowedRoots = String(process.env.AUTOLANCER_ALLOWED_FILE_ROOTS || 'D:\\Job Hunting\\Profiles\\')
+			.split(';')
+			.map((p) => p.trim())
+			.filter(Boolean)
+			.map((p) => path.normalize(p));
+
+		const normalizedLower = normalized.toLowerCase();
+		const withinAllowedRoot = allowedRoots.some((root) => normalizedLower.startsWith(String(root).toLowerCase()));
+		if (!withinAllowedRoot) {
+			return res.status(403).json({ error: 'Path is not within allowed roots.', allowedRoots });
+		}
+
+		const ext = path.extname(normalized).toLowerCase();
+		const allowedExts = new Set(['.pdf', '.doc', '.docx', '.txt', '.rtf']);
+		if (!allowedExts.has(ext)) {
+			return res.status(400).json({ error: `Unsupported file extension: ${ext}` });
+		}
+
+		const file = fs.readFileSync(normalized);
+		const fileName = path.basename(normalized);
+		const mimeType = ext === '.pdf'
+			? 'application/pdf'
+			: ext === '.doc'
+				? 'application/msword'
+				: ext === '.docx'
+					? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+					: ext === '.txt'
+						? 'text/plain'
+						: ext === '.rtf'
+							? 'application/rtf'
+							: 'application/octet-stream';
+
+		return res.json({
+			fileName,
+			mimeType,
+			base64: file.toString('base64'),
+			size: file.length
+		});
+	} catch (e) {
+		console.error('Failed to read local file', e);
+		return res.status(500).json({ error: 'Failed to read local file.' });
 	}
 });
 

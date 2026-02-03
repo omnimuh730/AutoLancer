@@ -14,7 +14,8 @@ export function AgentUI({
 	onJobDescriptionChange,
 	componentsData,
 	analysisData,
-	hasExecutableActions
+	hasExecutableActions,
+	executionReport
 }) {
 	return (
 		<Box sx={{ p: 2, maxWidth: 1000, margin: 'auto' }}>
@@ -74,6 +75,13 @@ export function AgentUI({
 				<Paper elevation={1} sx={{ p: 2 }}>
 					<Typography variant="subtitle1" sx={{ mb: 1 }}>AI Analysis</Typography>
 					<ResponseTreeView data={analysisData} />
+				</Paper>
+			)}
+
+			{executionReport && (
+				<Paper elevation={1} sx={{ p: 2, mt: 2 }}>
+					<Typography variant="subtitle1" sx={{ mb: 1 }}>Execution Result</Typography>
+					<ResponseTreeView data={executionReport} />
 				</Paper>
 			)}
 		</Box>

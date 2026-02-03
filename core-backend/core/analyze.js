@@ -26,6 +26,46 @@ function getSelectChildIndex(children) {
 	return children.findIndex((c) => c?.tag === 'select');
 }
 
+function getComboboxChildIndex(children) {
+	if (!Array.isArray(children) || children.length === 0) return -1;
+	const idx = children.findIndex((c) => String(c?.properties?.role || '').toLowerCase() === 'combobox');
+	if (idx !== -1) return idx;
+	return children.findIndex((c) => String(c?.properties?.['aria-haspopup'] || '').toLowerCase() === 'true');
+}
+
+function pickLocalUploadIndex(children) {
+	const normalized = (value) => String(value || '').toLowerCase().replace(/\s+/g, ' ').trim();
+	const texts = children.map((c) => normalized(c?.innerText || c?.properties?.['aria-label'] || '')).filter(Boolean);
+	const enterIdx = texts.findIndex((t) => t.includes('enter manually'));
+	if (enterIdx !== -1) return enterIdx;
+	const uploadIdx = texts.findIndex((t) => t.includes('upload'));
+	if (uploadIdx !== -1) return uploadIdx;
+	return -1;
+}
+
+function getDefaultUploadPath(fieldKey) {
+	if (fieldKey === 'resume') return 'D:\\Job Hunting\\Profiles\\Bi Ge\\Resume\\AI\\Bi Ge.pdf';
+	if (fieldKey === 'coverletter') return 'D:\\Job Hunting\\Profiles\\Bi Ge\\Resume\\Cover Letter.pdf';
+	return null;
+}
+
+function findUploadTriggerIndex(children) {
+	if (!Array.isArray(children) || children.length === 0) return -1;
+	const norm = (v) => String(v || '').toLowerCase().replace(/\s+/g, ' ').trim();
+	// Prefer explicit "upload"/"attach" CTAs
+	for (let i = 0; i < children.length; i++) {
+		const c = children[i];
+		if (!c) continue;
+		if (!['button', 'a', 'label', 'div', 'span', 'input'].includes(String(c.tag || '').toLowerCase())) continue;
+		const text = norm(c.innerText || '') + ' ' + norm(c.properties?.['aria-label'] || '') + ' ' + norm(c.properties?.title || '');
+		if (text.includes('upload') || text.includes('attach') || text.includes('choose file') || text.includes('browse')) return i;
+	}
+	// Fallback: first button/label
+	const btnIdx = children.findIndex((c) => ['button', 'label', 'a'].includes(String(c?.tag || '').toLowerCase()));
+	if (btnIdx !== -1) return btnIdx;
+	return -1;
+}
+
 async function analyzeData(data, options = {}) {
 	const children = data.Children || [];
 	const parent = data.Parent;
@@ -64,22 +104,57 @@ async function analyzeData(data, options = {}) {
 
 	// 5. Logic Engine
 	if (intent.isStatic) {
+		// Avoid clicking third-party upload provider buttons (Dropbox/Google Drive/Enter manually).
+		// Real uploads are handled via explicit UPLOAD fields (resume/cover letter) when a file input exists.
+		if (intent.field === 'file_upload') {
+			return {
+				summary: `Analyzed: ${intent.field} (SKIPPED)`,
+				insights: {
+					field: intent.field,
+					interactionType: interactionType,
+					context: context
+				},
+				action_suggestion: null,
+				aiUsage: null
+			};
+		}
+
 		// --- STATIC FIELD LOGIC (Existing) ---
 		const profileValue = getProfileValue(intent.field, { profileIdentifier });
 
 		if (interactionType === 'UPLOAD') {
-			const inputIndex = children.findIndex(c => c.tag === 'input');
+			const fileIndex = children.findIndex(c => c.tag === 'input' && String(c?.properties?.type || '').toLowerCase() === 'file');
+			const fallbackIndex = findUploadTriggerIndex(children);
+			const inputIndex = fileIndex !== -1
+				? fileIndex
+				: (fallbackIndex !== -1 ? fallbackIndex : (children.findIndex(c => c.tag === 'input')));
+			const value = profileValue || getDefaultUploadPath(intent.field);
 			finalAction = {
 				command: "UPLOAD",
-				payload: { value: profileValue, childIndex: inputIndex }
+				payload: { value, childIndex: inputIndex, field: intent.field }
 			};
 		}
-		else if (interactionType === 'TYPING' || interactionType === 'COMBOBOX') {
+		else if (interactionType === 'TYPING') {
 			const inputIndex = children.findIndex(c => c.tag === 'input' || c.tag === 'textarea');
+			const value = intent.field === 'coverletter'
+				? (getProfileValue('coverletter_text', { profileIdentifier }) || 'This is cover letter')
+				: profileValue;
 			finalAction = {
 				command: "TYPING",
-				payload: { value: profileValue, childIndex: inputIndex }
+				payload: { value, childIndex: inputIndex }
 			};
+		}
+		else if (interactionType === 'COMBOBOX') {
+			const comboboxIndex = getComboboxChildIndex(children);
+			const selectionValue = profileValue;
+			if (selectionValue) {
+				finalAction = {
+					command: "SELECT_OPTION",
+					payload: { childIndex: comboboxIndex !== -1 ? comboboxIndex : 0, selectionValue }
+				};
+			} else {
+				finalAction = { command: "ERROR", reason: `No profile value for '${intent.field}'` };
+			}
 		}
 		else if (interactionType === 'SELECT') {
 			const optionsList = getSelectOptionsFromChildren(children);
@@ -117,6 +192,28 @@ async function analyzeData(data, options = {}) {
 		}
 		else if (interactionType === 'SELECTION_GROUP') {
 			const optionsList = children.map(c => (c.innerText || '').trim()).filter(t => t.length > 0);
+
+			// Prefer local uploads for the "attach/upload" chooser widgets (e.g., Greenhouse: Dropbox/Google Drive/Enter manually).
+			if (intent.field === 'file_upload') {
+				const preferredIndex = pickLocalUploadIndex(children);
+				if (preferredIndex !== -1) {
+					finalAction = {
+						command: "CLICK",
+						payload: { childIndex: preferredIndex, text: children[preferredIndex]?.innerText || '' }
+					};
+					return {
+						summary: `Analyzed: ${intent.field || 'Dynamic Question'} (${interactionType})`,
+						insights: {
+							field: intent.field,
+							interactionType: interactionType,
+							context: context
+						},
+						action_suggestion: finalAction,
+						aiUsage: aiUsageStats
+					};
+				}
+			}
+
 			if (profileValue) {
 				const targetIndex = children.findIndex(child => {
 					const text = (child.innerText || '').toLowerCase().trim();
@@ -218,12 +315,13 @@ async function analyzeData(data, options = {}) {
 						}
 					};
 				} else if (interactionType === 'COMBOBOX') {
-					// For combobox, we usually TYPE the selected option then enter/click
+					// For comboboxes, prefer selection-mode so the extension can open and click list items (e.g., React-Select).
 					finalAction = {
-						command: "TYPING",
+						command: "SELECT_OPTION",
 						payload: {
-							value: optionsList[aiResponse.selectedIndex],
-							childIndex: 0 // assuming input is first, or use findIndex
+							childIndex: getComboboxChildIndex(children) !== -1 ? getComboboxChildIndex(children) : 0,
+							selectedIndex: aiResponse.selectedIndex,
+							selectionValue: optionsList[aiResponse.selectedIndex]
 						}
 					};
 				}

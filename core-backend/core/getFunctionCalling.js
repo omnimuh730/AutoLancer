@@ -36,6 +36,7 @@ function getProfileValue(fieldKey, options = {}) {
 		// Files (optional; add to profile.json when available)
 		case 'resume': return profile?.files?.resumePath || profile?.resumePath || null;
 		case 'coverletter': return profile?.files?.coverLetterPath || profile?.coverLetterPath || null;
+		case 'coverletter_text': return profile?.files?.coverLetterText || profile?.coverLetterText || null;
 		case 'fileupload': return profile?.files?.fileUploadPath || null;
 
 		// Work / preferences
@@ -55,6 +56,7 @@ function getProfileValue(fieldKey, options = {}) {
 		// EEO style fields (often used in selection questions)
 		case 'gender': return profile?.eeo?.gender || profile?.eeo?.Gender || null;
 		case 'race': return profile?.eeo?.race || null;
+		case 'hispanic_ethnicity': return profile?.eeo?.hispanicEthnicity || profile?.eeo?.hispanic_ethnicity || null;
 		case 'veteran_status': return profile?.eeo?.veteranStatus || null;
 		case 'disability_status': return profile?.eeo?.disabilityStatus || null;
 

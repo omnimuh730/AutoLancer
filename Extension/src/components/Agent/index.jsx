@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRuntime } from '../../api/runtimeContext';
 import useApi from '../../api/useApi';
 import { AgentUI } from './UI';
-import { highlightInteractables, executeActionsParallel } from '../../contentScript/interactionBridge';
+import { highlightInteractables, executeActionsSequence } from '../../contentScript/interactionBridge';
 import { useAgentState } from './hooks';
 
 /* global chrome */
@@ -14,6 +14,7 @@ function AgentPage() {
 	const [loading, setLoading] = useState(false);
 	const [executing, setExecuting] = useState(false);
 	const [error, setError] = useState(null);
+	const [executionReport, setExecutionReport] = useState(null);
 	const [profiles, setProfiles] = useState([]);
 	const [profileIdentifier, setProfileIdentifier] = useState('');
 	const runIdRef = useRef(null);
@@ -116,6 +117,11 @@ function AgentPage() {
 		if (command === 'CLICK') {
 			return children.find((c) => c?.tag === 'button' || c?.tag === 'a' || c?.tag === 'label' || (c?.tag === 'input' && ['radio', 'checkbox', 'button', 'submit'].includes(String(c?.properties?.type || '').toLowerCase()))) || null;
 		}
+		if (command === 'UPLOAD' || command === 'FILEUPLOAD') {
+			return children.find((c) => c?.tag === 'input' && String(c?.properties?.type || '').toLowerCase() === 'file')
+				|| children.find((c) => c?.tag === 'input')
+				|| null;
+		}
 		if (command === 'SELECT_OPTION') {
 			return children.find((c) => c?.tag === 'select')
 				|| children.find((c) => c?.tag === 'input' && (c?.properties?.['aria-haspopup'] === 'true' || String(c?.properties?.role || '').toLowerCase() === 'button'))
@@ -138,6 +144,7 @@ function AgentPage() {
 		setError(null);
 		setExecutableActions([]);
 		setExecuting(false);
+		setExecutionReport(null);
 
 		console.log('Sending analyze request with payload:', payload);
 
@@ -162,9 +169,7 @@ function AgentPage() {
 					const suggestion = item?.action_suggestion || item?.insights?.action_suggestion || null;
 					const command = suggestion?.command || null;
 					if (!command) continue;
-					if (command !== 'TYPING' && command !== 'CLICK' && command !== 'SELECT_OPTION') continue;
-					// Explicitly ignore uploads for now.
-					if (command === 'UPLOAD' || command === 'FILEUPLOAD') continue;
+					if (command !== 'TYPING' && command !== 'CLICK' && command !== 'SELECT_OPTION' && command !== 'UPLOAD' && command !== 'FILEUPLOAD') continue;
 
 					const scopeSelector = deriveSelectorFromSerializedElement(group?.Parent);
 					const hasScope = Boolean(scopeSelector?.pattern);
@@ -230,6 +235,21 @@ function AgentPage() {
 							actions.push({ ...selector, order: 0, action: 'selectByText', value: selectionValue, selectedIndex });
 						}
 					}
+					else if (command === 'UPLOAD' || command === 'FILEUPLOAD') {
+						const filePath = suggestion?.payload?.value;
+						const field = suggestion?.payload?.field || item?.insights?.field || null;
+						if (!filePath) continue;
+
+						if (hasScope && Number.isFinite(parseInt(childIndex, 10))) {
+							actions.push({ action: 'uploadFileScoped', scope: scopeSelector, childIndex: parseInt(childIndex, 10), value: filePath, field });
+						} else if (hasScope) {
+							actions.push({ action: 'uploadFileScoped', scope: scopeSelector, value: filePath, field });
+						} else {
+							const selector = deriveSelectorFromSerializedElement(targetSerializedElement);
+							if (!selector?.pattern) continue;
+							actions.push({ ...selector, order: 0, action: 'uploadFile', value: filePath, field });
+						}
+					}
 				}
 				setExecutableActions(actions);
 			}
@@ -270,7 +290,17 @@ function AgentPage() {
 			} else if (message?.action === 'executeActionsParallelResult') {
 				const runId = message?.payload?.runId || null;
 				const isCurrentRun = !runId || runId === runIdRef.current;
-				if (isCurrentRun) setExecuting(false);
+				if (isCurrentRun) {
+					setExecuting(false);
+					setExecutionReport(message.payload || null);
+				}
+			} else if (message?.action === 'executeActionsSequenceResult') {
+				const runId = message?.payload?.runId || null;
+				const isCurrentRun = !runId || runId === runIdRef.current;
+				if (isCurrentRun) {
+					setExecuting(false);
+					setExecutionReport(message.payload || null);
+				}
 			}
 		};
 		addListener(listener);
@@ -318,7 +348,7 @@ function AgentPage() {
 
 		setExecuting(true);
 		console.log('Executing actions:', executableActions);
-		executeActionsParallel(executableActions, runIdRef.current);
+		executeActionsSequence(executableActions, runIdRef.current);
 	};
 
 	const hasExecutableActions = executableActions.length > 0;
@@ -338,6 +368,7 @@ function AgentPage() {
 			componentsData={componentsData}
 			analysisData={analysisData}
 			hasExecutableActions={hasExecutableActions}
+			executionReport={executionReport}
 		/>
 	);
 }

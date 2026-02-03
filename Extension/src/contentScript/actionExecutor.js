@@ -31,6 +31,16 @@ function wait(ms) {
 	return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function clickLikeHuman(element) {
+	if (!element) return;
+	try { element.scrollIntoView?.({ block: 'center', inline: 'nearest' }); } catch { /* best effort */ }
+	try { element.dispatchEvent(new MouseEvent('mouseover', { bubbles: true })); } catch { /* best effort */ }
+	try { element.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true })); } catch { /* best effort */ }
+	try { element.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); } catch { /* best effort */ }
+	try { element.dispatchEvent(new MouseEvent('mouseup', { bubbles: true })); } catch { /* best effort */ }
+	try { element.click?.(); } catch { /* best effort */ }
+}
+
 function randomBetween(min, max) {
 	return Math.random() * (max - min) + min;
 }
@@ -309,21 +319,15 @@ export async function typeSmoothly(element, text, options = {}) {
 }
 
 async function selectFromAriaDropdown(element, selectionText) {
+	if (isReactSelectInput(element)) {
+		return selectFromReactSelect(element, selectionText);
+	}
+
 	const candidates = [...extractQuotedPhrases(selectionText), selectionText].filter(Boolean);
 	const desired = candidates[0] || '';
 
-	element.focus?.();
-	try {
-		element.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }));
-		element.dispatchEvent(new KeyboardEvent('keyup', { key: ' ', bubbles: true }));
-	} catch {
-		// best effort
-	}
-	try {
-		element.click?.();
-	} catch {
-		// best effort
-	}
+	try { element.focus?.(); } catch { /* best effort */ }
+	clickLikeHuman(element);
 
 	await wait(100);
 
@@ -340,6 +344,110 @@ async function selectFromAriaDropdown(element, selectionText) {
 	}
 
 	return { success: true };
+}
+
+function isReactSelectInput(element) {
+	if (!element || !(element instanceof Element)) return false;
+	if (element.classList?.contains('select__input')) return true;
+	// Greenhouse uses react-select with surrounding classes like select__control/select__container.
+	if (element.closest?.('.select__control, .select__container, .select-shell')) return true;
+	return false;
+}
+
+async function waitForReactSelectListbox(inputEl, timeoutMs = 2000) {
+	const start = Date.now();
+	const inputId = inputEl?.getAttribute?.('id') || '';
+	const expectedListboxId = inputId ? `react-select-${inputId}-listbox` : '';
+
+	while (Date.now() - start < timeoutMs) {
+		const ariaControls = inputEl?.getAttribute?.('aria-controls') || '';
+		if (ariaControls) {
+			const byAria = document.getElementById(ariaControls);
+			if (byAria) return byAria;
+		}
+
+		if (expectedListboxId) {
+			const byId = document.getElementById(expectedListboxId);
+			if (byId) return byId;
+		}
+
+		// Menu can be rendered via portal at document body level.
+		const menu = document.querySelector('.select__menu');
+		if (menu) return menu;
+
+		// Generic fallback: visible listbox near the input.
+		const listboxes = Array.from(document.querySelectorAll('[role="listbox"]'));
+		const visible = listboxes.find((lb) => lb && lb.offsetParent !== null);
+		if (visible) return visible;
+
+		await wait(50);
+	}
+	return null;
+}
+
+async function selectFromReactSelect(target, selectionText, options = {}) {
+	const candidates = deriveSelectionCandidates(selectionText);
+	const desired = candidates[0] || '';
+	const selectedIndex = Number.isFinite(options.selectedIndex) ? options.selectedIndex : parseInt(options.selectedIndex, 10);
+
+	const control = target?.closest?.('.select__control') || target?.closest?.('.select__container') || target?.closest?.('.select-shell') || target;
+	const inputEl = (target instanceof HTMLInputElement && (target.getAttribute?.('role') || '').toLowerCase() === 'combobox')
+		? target
+		: (control?.querySelector?.('input.select__input, input[role="combobox"]') || target?.querySelector?.('input.select__input, input[role="combobox"]') || null);
+
+	const toggle = control?.querySelector?.('button[aria-label="Toggle flyout"], button[aria-label*="Toggle"]');
+
+	// React-Select commonly opens on mousedown on the control.
+	try { inputEl?.focus?.(); } catch { /* best effort */ }
+	if (control && control !== inputEl) {
+		try { control.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); } catch { /* best effort */ }
+	}
+	if (toggle) clickLikeHuman(toggle);
+	if (inputEl) clickLikeHuman(inputEl);
+
+	await wait(100);
+
+	// Type to filter options (react-select commonly uses this).
+	if (inputEl && desired) {
+		try {
+			setNativeValue(inputEl, '');
+			inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+		} catch { /* best effort */ }
+		await typeSmoothly(inputEl, desired, { minDelayMs: 5, maxDelayMs: 15 });
+		await wait(100);
+	}
+
+	const listbox = await waitForReactSelectListbox(inputEl || target, 3000);
+	if (!listbox) return { success: false, error: 'React-Select listbox did not open' };
+
+	const optionNodes = Array.from(listbox.querySelectorAll('[role="option"], .select__option')).filter(Boolean);
+
+	if (Number.isFinite(selectedIndex) && selectedIndex >= 0 && selectedIndex < optionNodes.length) {
+		const node = optionNodes[selectedIndex];
+		node.scrollIntoView?.({ block: 'nearest' });
+		try { node.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); } catch { /* best effort */ }
+		try { node.click?.(); } catch { /* best effort */ }
+		return { success: true };
+	}
+
+	for (const candidate of candidates) {
+		const match = findBestMatchingNode(optionNodes, candidate);
+		if (!match) continue;
+		match.scrollIntoView?.({ block: 'nearest' });
+		try { match.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); } catch { /* best effort */ }
+		try { match.click?.(); } catch { /* best effort */ }
+		return { success: true };
+	}
+
+	// Last resort: attempt keyboard selection (first result).
+	try {
+		(inputEl || target)?.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+		(inputEl || target)?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+		(inputEl || target)?.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', bubbles: true }));
+		return { success: true };
+	} catch {
+		return { success: false, error: 'No matching React-Select option found' };
+	}
 }
 
 export async function selectByText(element, selectionText) {
@@ -368,7 +476,8 @@ export async function selectByText(element, selectionText) {
 		return selectFromSelect2(element, selectionText);
 	}
 
-	const isAriaDropdown = element.getAttribute?.('aria-haspopup') === 'true' || (element.getAttribute?.('role') || '').toLowerCase() === 'button';
+	const role = (element.getAttribute?.('role') || '').toLowerCase();
+	const isAriaDropdown = element.getAttribute?.('aria-haspopup') === 'true' || role === 'button' || role === 'combobox';
 	if (isAriaDropdown) {
 		return selectFromAriaDropdown(element, selectionText);
 	}
@@ -442,14 +551,207 @@ async function performScopedSelect(payload) {
 
 	const selectedIndex = payload?.selectedIndex;
 	if (selectedIndex !== undefined && selectedIndex !== null) {
+		// Native <select> / Select2 path
 		const byIndex = await selectByIndex(scopedTarget, selectedIndex);
 		if (byIndex.success) return { success: true };
+
+		// React-Select path (Greenhouse EEO dropdowns)
+		if (isReactSelectInput(scopedTarget) || (scopedTarget.getAttribute?.('role') || '').toLowerCase() === 'combobox') {
+			const byReactIndex = await selectFromReactSelect(scopedTarget, payload?.value || '', { selectedIndex });
+			if (byReactIndex.success) return { success: true };
+		}
 	}
 
 	const selectionText = payload?.value;
 	const selectResult = await selectByText(scopedTarget, selectionText);
 	if (!selectResult.success) return selectResult;
 	return { success: true };
+}
+
+function base64ToUint8Array(base64) {
+	const value = base64 == null ? '' : String(base64);
+	const binary = atob(value);
+	const bytes = new Uint8Array(binary.length);
+	for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+	return bytes;
+}
+
+function inferFilename(filePath) {
+	const raw = filePath == null ? '' : String(filePath);
+	const normalized = raw.replace(/\//g, '\\');
+	const parts = normalized.split('\\').filter(Boolean);
+	return parts[parts.length - 1] || 'upload.bin';
+}
+
+function inferMimeType(fileName) {
+	const lower = String(fileName || '').toLowerCase();
+	if (lower.endsWith('.pdf')) return 'application/pdf';
+	if (lower.endsWith('.doc')) return 'application/msword';
+	if (lower.endsWith('.docx')) return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+	if (lower.endsWith('.txt')) return 'text/plain';
+	if (lower.endsWith('.rtf')) return 'application/rtf';
+	return 'application/octet-stream';
+}
+
+function normalizeUploadField(field) {
+	const raw = String(field || '').toLowerCase().trim();
+	if (!raw) return '';
+	if (raw === 'coverletter') return 'cover';
+	return raw;
+}
+
+function scoreFileInput(input, options = {}) {
+	if (!(input instanceof HTMLInputElement) || String(input.type || '').toLowerCase() !== 'file') return -1;
+	if (input.disabled) return -1;
+
+	const field = normalizeUploadField(options.field);
+	const scopeParent = options.scopeParent || null;
+	const beforeSet = options.beforeSet || null;
+
+	let score = 0;
+
+	if (beforeSet && !beforeSet.has(input)) score += 2; // newly appeared after click
+
+	const id = String(input.id || '').toLowerCase();
+	const name = String(input.name || '').toLowerCase();
+	const aria = String(input.getAttribute('aria-label') || '').toLowerCase();
+	const accept = String(input.getAttribute('accept') || '').toLowerCase();
+	const combined = `${id} ${name} ${aria}`;
+
+	if (field) {
+		if (combined.includes(field)) score += 4;
+		if (field === 'resume' && combined.includes('cv')) score += 1;
+		if (field === 'cover' && (combined.includes('cover_letter') || combined.includes('cover letter'))) score += 2;
+	}
+
+	// Prefer inputs in an active dialog/modal if one exists.
+	const dialog = input.closest?.('[role="dialog"], [aria-modal="true"], .modal, .MuiDialog-root, .ReactModal__Content');
+	if (dialog && dialog.offsetParent !== null) score += 2;
+
+	// Prefer within current scoped parent.
+	if (scopeParent && scopeParent.contains?.(input)) score += 2;
+
+	if (accept.includes('pdf')) score += 1;
+
+	return score;
+}
+
+async function waitForBestFileInput(options = {}) {
+	const timeoutMs = Number.isFinite(options.timeoutMs) ? options.timeoutMs : 2500;
+	const start = Date.now();
+
+	const pickBestNow = () => {
+		const inputs = Array.from(document.querySelectorAll('input[type="file"]'));
+		let best = null;
+		let bestScore = -1;
+		for (const input of inputs) {
+			const score = scoreFileInput(input, options);
+			if (score > bestScore) {
+				bestScore = score;
+				best = input;
+			}
+		}
+		return best;
+	};
+
+	if (timeoutMs <= 0) {
+		return pickBestNow();
+	}
+
+	while (Date.now() - start < timeoutMs) {
+		const best = pickBestNow();
+
+		if (best && scoreFileInput(best, options) >= 2) return best;
+		await wait(50);
+	}
+
+	// Last chance: return any file input even if low confidence.
+	const inputs = Array.from(document.querySelectorAll('input[type="file"]'));
+	return inputs[0] || null;
+}
+
+async function requestLocalFileFromBackend(filePath) {
+	return new Promise((resolve) => {
+		if (typeof chrome === 'undefined' || !chrome.runtime?.sendMessage) {
+			resolve({ success: false, error: 'chrome.runtime.sendMessage not available' });
+			return;
+		}
+
+		try {
+			chrome.runtime.sendMessage(
+				{ action: 'readLocalFile', payload: { path: filePath } },
+				(response) => {
+					if (!response?.success) {
+						resolve({ success: false, error: response?.error || 'readLocalFile failed' });
+						return;
+					}
+					resolve({ success: true, data: response.data || null });
+				}
+			);
+		} catch (e) {
+			resolve({ success: false, error: String(e && e.message || e) });
+		}
+	});
+}
+
+async function setFileOnInput(fileInput, filePath) {
+	if (!(fileInput instanceof HTMLInputElement) || String(fileInput.type || '').toLowerCase() !== 'file') {
+		return { success: false, error: 'Target is not an <input type="file">' };
+	}
+	if (!filePath) return { success: false, error: 'No file path provided' };
+
+	const result = await requestLocalFileFromBackend(filePath);
+	if (!result.success) return result;
+
+	const payload = result.data || {};
+	const fileName = payload.fileName || inferFilename(filePath);
+	const mimeType = payload.mimeType || inferMimeType(fileName);
+	const bytes = base64ToUint8Array(payload.base64 || '');
+	const file = new File([bytes], fileName, { type: mimeType });
+
+	const dt = new DataTransfer();
+	dt.items.add(file);
+
+	try {
+		fileInput.focus?.();
+	} catch { /* best effort */ }
+
+	fileInput.files = dt.files;
+
+	fileInput.dispatchEvent(new Event('input', { bubbles: true }));
+	fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+
+	return { success: true };
+}
+
+async function performUpload(payload, targetElement, scopeParent) {
+	const filePath = payload?.value;
+	const field = payload?.field || '';
+
+	if (!filePath) return { success: false, error: 'No file path provided' };
+
+	// If we already have the actual input, just set it.
+	if (targetElement instanceof HTMLInputElement && String(targetElement.type || '').toLowerCase() === 'file') {
+		return await setFileOnInput(targetElement, filePath);
+	}
+
+	// Prefer existing file inputs (avoids triggering the native file picker modal).
+	const existing = await waitForBestFileInput({ field, scopeParent, timeoutMs: 0 });
+	if (existing) {
+		const directScore = scoreFileInput(existing, { field, scopeParent });
+		if (directScore >= 2) {
+			return await setFileOnInput(existing, filePath);
+		}
+	}
+
+	// Otherwise: click to reveal/activate the underlying <input type="file">, then find the best candidate and set it.
+	const before = new Set(Array.from(document.querySelectorAll('input[type="file"]')));
+	if (targetElement) clickLikeHuman(targetElement);
+
+	const best = await waitForBestFileInput({ beforeSet: before, field, scopeParent, timeoutMs: 3500 });
+	if (!best) return { success: false, error: 'No <input type="file"> found after opening upload UI' };
+
+	return await setFileOnInput(best, filePath);
 }
 
 /**
@@ -465,8 +767,8 @@ export async function performActionOnElement(payload) {
 			if (!scopedTarget) return { success: false, error: 'Scoped target not found' };
 
 			if (action === 'clickScoped') {
-				scopedTarget.focus?.();
-				scopedTarget.click?.();
+				try { scopedTarget.focus?.(); } catch { /* best effort */ }
+				clickLikeHuman(scopedTarget);
 				return { success: true };
 			}
 
@@ -483,6 +785,23 @@ export async function performActionOnElement(payload) {
 			fillTarget.dispatchEvent(new Event('input', { bubbles: true }));
 			fillTarget.dispatchEvent(new Event('change', { bubbles: true }));
 			return { success: true };
+		}
+
+		if (action === 'uploadFileScoped') {
+			const scopedTarget = await resolveScopedTarget(payload);
+
+			// Best-effort: resolve the scope parent so we can prefer its file inputs.
+			let scopeParent = null;
+			try {
+				const scope = payload?.scope;
+				if (scope) {
+					const parents = findElements(scope.componentType, scope.propertyName, scope.pattern);
+					const parentIndex = Number.isFinite(scope.order) ? Math.max(0, parseInt(scope.order, 10)) : 0;
+					scopeParent = (parents && parents[parentIndex]) || (parents && parents[0]) || null;
+				}
+			} catch { /* best effort */ }
+
+			return await performUpload(payload, scopedTarget, scopeParent);
 		}
 
 		if (action === 'selectByTextScoped') {
@@ -514,7 +833,7 @@ export async function performActionOnElement(payload) {
 
 		switch (action) {
 			case "click":
-				targetElement.click();
+				clickLikeHuman(targetElement);
 				break;
 			case "fill":
 				setNativeValue(targetElement, value);
@@ -528,8 +847,17 @@ export async function performActionOnElement(payload) {
 				if (payload?.selectedIndex !== undefined && payload?.selectedIndex !== null) {
 					const byIndex = await selectByIndex(targetElement, payload.selectedIndex);
 					if (byIndex.success) break;
+					if (isReactSelectInput(targetElement) || (targetElement.getAttribute?.('role') || '').toLowerCase() === 'combobox') {
+						const byReact = await selectFromReactSelect(targetElement, value, { selectedIndex: payload.selectedIndex });
+						if (byReact.success) break;
+					}
 				}
 				const result = await selectByText(targetElement, value);
+				if (!result.success) return result;
+				break;
+			}
+			case "uploadFile": {
+				const result = await performUpload(payload, targetElement, null);
 				if (!result.success) return result;
 				break;
 			}

@@ -409,7 +409,9 @@ export const messageHandler = (request, sender, sendResponse) => {
 						const selector = 'input:not([type="hidden"]),select,textarea,button,[role="button"],[tabindex],a[href]';
 
 						const nodes = Array.from(document.querySelectorAll(selector))
-							.filter(isVisible)
+							// Include hidden <input type="file"> elements so uploads can be automated
+							// even when the UI uses a custom "Upload" button.
+							.filter((el) => isVisible(el) || el.matches?.('input[type="file"]'))
 							.filter(el => {
 								if (!el.hasAttribute('tabindex')) return true;
 								const hasInteractableChildren = el.querySelector(INTERACTABLE_CHILD_SELECTOR);

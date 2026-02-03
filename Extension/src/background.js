@@ -365,7 +365,65 @@ try {
 
 // Messages coming from content scripts that should be relayed to the extension UI
 // Listen for messages from the UI and forward them to the content script or to backend
-chrome.runtime.onMessage.addListener((message) => {
+function readStorageValue(key) {
+	return new Promise((resolve) => {
+		try {
+			chrome.storage?.local?.get?.(key, (result) => {
+				if (chrome.runtime?.lastError) {
+					resolve(null);
+					return;
+				}
+				resolve(result?.[key] ?? null);
+			});
+		} catch {
+			resolve(null);
+		}
+	});
+}
+
+function normalizeBaseUrl(raw) {
+	const value = typeof raw === 'string' ? raw.trim() : '';
+	if (!value) return '';
+	return value.endsWith('/') ? value.slice(0, -1) : value;
+}
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+	// Content script -> background: read a local file via core-backend and return base64.
+	if (message?.action === 'readLocalFile') {
+		(async () => {
+			try {
+				const baseUrl = normalizeBaseUrl(await readStorageValue('spiritApiBaseUrl'));
+				if (!baseUrl) {
+					sendResponse?.({ success: false, error: 'spiritApiBaseUrl not set' });
+					return;
+				}
+
+				const filePath = message?.payload?.path;
+				if (!filePath || typeof filePath !== 'string') {
+					sendResponse?.({ success: false, error: 'Missing payload.path' });
+					return;
+				}
+
+				const resp = await fetch(`${baseUrl}/local-file`, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ path: filePath })
+				});
+				if (!resp.ok) {
+					const text = await resp.text().catch(() => '');
+					sendResponse?.({ success: false, error: `local-file failed (${resp.status}): ${text || resp.statusText}` });
+					return;
+				}
+				const data = await resp.json();
+				sendResponse?.({ success: true, data });
+			} catch (e) {
+				sendResponse?.({ success: false, error: String(e && e.message || e) });
+			}
+		})();
+
+		return true;
+	}
+
 	// UI -> background command: open multiple tabs (payload: { urls: [] })
 	if (message.action === 'open-tabs') {
 		const urls = message.payload && Array.isArray(message.payload.urls) ? message.payload.urls : [];

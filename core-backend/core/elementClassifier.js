@@ -6,6 +6,7 @@ function classifyInteractionType(children) {
 	// Helper to safely check properties
 	const getType = (c) => (c.properties?.type || '').toLowerCase();
 	const getRole = (c) => (c.properties?.role || '').toLowerCase();
+	const hasAriaDropdown = (c) => String(c?.properties?.['aria-haspopup'] || '').toLowerCase() === 'true';
 
 	// 1. Check for File Upload
 	const fileInput = children.find(c => c.tag === 'input' && getType(c) === 'file');
@@ -15,19 +16,26 @@ function classifyInteractionType(children) {
 	const selectInput = children.find(c => c.tag === 'select');
 	if (selectInput) return 'SELECT';
 
-	// 2. Check for Text Inputs
-	// Includes standard inputs and textareas
-	const textInput = children.find(c =>
-		c.tag === 'textarea' ||
-		(c.tag === 'input' && ['text', 'email', 'tel', 'url', 'number', 'password', ''].includes(getType(c)))
-	);
+	// 3. Check for Text Inputs
+	// Includes standard inputs and textareas. IMPORTANT: Some groups contain both a combobox
+	// (e.g., phone country) and a regular input (e.g., phone number). Prefer the regular input.
+	const isTextInputType = (t) => ['text', 'email', 'tel', 'url', 'number', 'password', ''].includes(t);
 
-	// 3. Special handling for Comboboxes
-	// Sometimes the role is on the input, sometimes on a wrapping div in the children list
-	const combobox = children.find(c => getRole(c) === 'combobox');
+	const plainTextInput = children.find((c) => {
+		if (c.tag === 'textarea') return true;
+		if (c.tag !== 'input') return false;
+		if (!isTextInputType(getType(c))) return false;
+		const role = getRole(c);
+		if (role === 'combobox') return false;
+		if (hasAriaDropdown(c)) return false;
+		return true;
+	});
+	if (plainTextInput) return 'TYPING';
 
+	// 4. Special handling for Comboboxes
+	// Sometimes the role is on the input, sometimes on a wrapping div in the children list.
+	const combobox = children.find((c) => getRole(c) === 'combobox' || hasAriaDropdown(c));
 	if (combobox) return 'COMBOBOX';
-	if (textInput && !combobox) return 'TYPING';
 
 	// 5. Check for Selection Groups (Radios, Checkboxes, Button Toggles)
 

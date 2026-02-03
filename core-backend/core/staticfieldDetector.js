@@ -44,11 +44,19 @@ const staticFieldDetectionRule = [
 	{ field: 'portfolio', tags: ['portfolio', 'website', 'personal site'] },
 	{ field: 'website', tags: ['website', 'personal site', 'webpage'] },
 	{ field: 'twitter', tags: ['twitter'] },
+
+	// EEO (Greenhouse frequently renders these as React-Select comboboxes)
+	{ field: 'gender', tags: ['gender', 'sex', 'gender identity'] },
+	{ field: 'race', tags: ['race'] },
+	{ field: 'hispanic_ethnicity', tags: ['hispanic', 'latino', 'hispanic_ethnicity', 'ethnicity'] },
+	{ field: 'veteran_status', tags: ['veteran', 'veteran_status'] },
+	{ field: 'disability_status', tags: ['disability', 'disability_status'] },
+
 	{ field: 'location', tags: ['location', 'city', 'address', 'residence'] },
 
 	// Updated Tags for Resume/Cover Letter to catch "Additional Info" context
 	{ field: 'resume', tags: ['resume', 'cv', 'curriculum vitae'] },
-	{ field: 'coverletter', tags: ['cover letter', 'coverletter'] }, // matches "add a cover letter..."
+	{ field: 'coverletter', tags: ['cover letter', 'coverletter', 'cover_letter'] }, // matches "add a cover letter..."
 
 	{ field: 'work_authorization', tags: ['legally authorized', 'work in the', 'eligibility', 'visa sponsorship', 'authorized to work'] },
 	{ field: 'sponsorship_required', tags: ['require sponsorship', 'need sponsorship', 'h-1b', 'visa sponsorship', 'sponsorship'] },

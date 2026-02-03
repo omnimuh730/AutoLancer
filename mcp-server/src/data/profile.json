@@ -82,8 +82,14 @@
 			"eeo": {
 				"race": "East Asian",
 				"gender": "Male",
+				"hispanicEthnicity": "No",
 				"veteranStatus": "No",
 				"disabilityStatus": "No"
+			},
+			"files": {
+				"resumePath": "D:\\Job Hunting\\Profiles\\Bi Ge\\Resume\\AI\\Bi Ge.pdf",
+				"coverLetterPath": "D:\\Job Hunting\\Profiles\\Bi Ge\\Resume\\Cover Letter.pdf",
+				"coverLetterText": "This is cover letter"
 			},
 			"work": {
 				"workAuthorization": "Authorized to work in the US"

@@ -37,7 +37,7 @@ const MatchPanel = ({ job, userSkills }) => {
 					<MetricItem label="Skill" score={scores.skillMatch} />
 				</Grid>
 				<Grid size={{ md: 6 }}>
-					<MetricItem label={`Bid.Est ${scores.estimateApplicantNumber >= "200" ? "200+" : scores.estimateApplicantNumber}`} score={scores.applicantScore} />
+					<MetricItem label={`Bid.Est ${scores.estimateApplicantNumber >= 200 ? "200+" : scores.estimateApplicantNumber}`} score={scores.applicantScore} />
 				</Grid>
 				<Grid size={{ md: 6 }}>
 					<MetricItem label="Freshness" score={scores.postedDateScore} />

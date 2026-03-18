@@ -17,6 +17,7 @@ import skillCategoryRoutes from "./src/routes/skillCategoryRoutes.js";
 import reportRoutes from "./src/routes/reportRoutes.js";
 import accountInfoRoutes from "./src/routes/accountInfoRoutes.js";
 import ruleRoutes from "./src/routes/ruleRoutes.js";
+import skillScoreRoutes from "./src/routes/skillScoreRoutes.js";
 
 const app = express();
 const port = process.env.PORT;
@@ -48,6 +49,7 @@ app.use('/api', skillCategoryRoutes);
 app.use('/api', reportRoutes);
 app.use('/api', accountInfoRoutes);
 app.use('/api', ruleRoutes);
+app.use('/api', skillScoreRoutes);
 
 server.listen(port, process.env.HOST || 'localhost', () => {
 	console.log(`Server running on http://${process.env.HOST || 'localhost'}:${port}`);

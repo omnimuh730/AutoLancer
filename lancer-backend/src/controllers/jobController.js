@@ -354,8 +354,7 @@ export async function getJobs(req, res) {
 		if (sort === 'recommended') {
 			docs = await jobsCollection.find(query).toArray();
 			let userSkills = [];
-			const needsUserSkills = docs.some(job => typeof job.skillScore !== 'number');
-			if (needsUserSkills && personalInfoCollection) {
+			if (personalInfoCollection) {
 				const skillDocs = await personalInfoCollection.find({}).toArray();
 				userSkills = skillDocs.map(d => d.name);
 			}

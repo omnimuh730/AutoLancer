@@ -70,34 +70,49 @@ const calculateSalaryScore = (jobMidSalary) => {
 export function calculateJobScores(job, userSkills) {
 	// Skill match
 	let skillMatch;
-	if (typeof job?.skillScore === 'number' && Number.isFinite(job.skillScore)) {
+	const requiredSkills = Array.isArray(job?.skills) ? job.skills : [];
+	const normalizedUserSkills = Array.isArray(userSkills)
+		? userSkills.map(s => String(s).trim().toLowerCase()).filter(Boolean)
+		: [];
+
+	// When user skills are available (chip selections), always compute match from them
+	// so UI reflects the current personalization state.
+	if (normalizedUserSkills.length > 0) {
+		const userSkillSet = new Set(normalizedUserSkills);
+		const matchedCount = requiredSkills.filter(req => userSkillSet.has(String(req).trim().toLowerCase())).length;
+		skillMatch = requiredSkills.length > 0 ? (matchedCount / requiredSkills.length) * 100 : 0;
+	} else if (typeof job?.skillScore === 'number' && Number.isFinite(job.skillScore)) {
+		// Fallback for contexts where user skills aren't loaded.
 		skillMatch = job.skillScore;
 	} else {
-		const requiredSkills = job.skills || [];
-		const userSkillSet = new Set((userSkills || []).map(s => s.toLowerCase()));
-		const matchedCount = requiredSkills.filter(req => userSkillSet.has(String(req).toLowerCase())).length;
-		skillMatch = requiredSkills.length > 0 ? (matchedCount / requiredSkills.length) * 100 : 0;
+		skillMatch = 0;
 	}
 
 	// Applicants score
-	const applicantCount = job.applicants?.count <= 25 ? Math.floor(Math.random() * 15 + 10) : job.applicants?.count;
+	// Use the observed applicant count as-is. Randomizing small counts makes the estimation unstable
+	// and produces obviously incorrect results for early postings.
+	const applicantCount = job.applicants?.count;
 	let applicantScore = 0;
 	let estimateApplicantNumber = 0;
 
-	if (typeof applicantCount === 'number') {
+	if (typeof applicantCount === 'number' && Number.isFinite(applicantCount) && applicantCount >= 0) {
 		// --- Given Data ---
-		const start = job._createdAt ? new Date(job._createdAt) : new Date(); // Job posting start time
-		const data_point_time = job.postedAt ? new Date(job.postedAt) : new Date(start.getTime() + 1);
-		const data_point_applicants = applicantCount;
-		//get current time;
+		// Posting time (t = 0) should be when the job was posted, not when we scraped it.
+		const startedTime = job.postedAt ? new Date(job.postedAt) : (job._createdAt ? new Date(job._createdAt) : new Date());
+		// Applicant count is observed when we scraped/saved the job, not at postedAt.
+		const dataPointTime = job._createdAt ? new Date(job._createdAt) : new Date();
 		const current = new Date();
+
+		// Guard against inverted timestamps which can produce negative elapsed times.
+		// If createdAt is earlier than postedAt, treat postedAt as the earlier one.
+		const safeStartedTime = startedTime.getTime() <= dataPointTime.getTime() ? startedTime : dataPointTime;
 
 
 		// --- Scenario 1: Assume a 48-hour peak interest time ---
 		const estimation = estimateApplicants({
-			started_time: start,
-			passed_time_datapoint: data_point_time,
-			applicants_datapoint: data_point_applicants,
+			started_time: safeStartedTime,
+			passed_time_datapoint: dataPointTime,
+			applicants_datapoint: applicantCount,
 			current_time: current,
 			max_applicants: MAXIMUM_APPLICANTS,
 			t0_peak_time_hours: MAXIMUM_BID_DELAY // This is our key assumption

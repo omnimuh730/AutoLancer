@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { fileURLToPath } from 'url';
 import { initMongo, closeMongo, jobsCollection, skillsCategoryCollection } from '../db/mongo.js';
 import { computeSkillScoreValue, uniqueNormalizedSkills } from '../services/skillScoreService.js';
 
@@ -7,12 +8,13 @@ const normalizeSkillKey = (skill) => {
 	return skill.trim().toLowerCase();
 };
 
-async function recalculateSkillScores() {
-	await initMongo();
+export async function recalculateSkillScores({ ensureMongo = true, closeMongoWhenDone = false } = {}) {
+	if (ensureMongo && (!jobsCollection || !skillsCategoryCollection)) {
+		await initMongo();
+	}
 	try {
 		if (!jobsCollection || !skillsCategoryCollection) {
-			console.error('Required collections are not available. Check Mongo configuration.');
-			process.exit(1);
+			throw new Error('Required collections are not available. Check Mongo configuration.');
 		}
 
 		const existingSkills = await skillsCategoryCollection.find({}, { projection: { name: 1 } }).toArray();
@@ -67,12 +69,18 @@ async function recalculateSkillScores() {
 		}
 
 		console.log(`SkillScore recalculation finished. Jobs scanned: ${processed}. SkillScores updated: ${updatedScores}. New skills recorded: ${insertedSkills}.`);
+		return { processed, updatedScores, insertedSkills };
 	} finally {
-		await closeMongo();
+		if (closeMongoWhenDone) {
+			await closeMongo();
+		}
 	}
 }
 
-recalculateSkillScores().catch(err => {
-	console.error('SkillScore recalculation script failed', err);
-	process.exit(1);
-});
+const isMain = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
+if (isMain) {
+	recalculateSkillScores({ ensureMongo: true, closeMongoWhenDone: true }).catch(err => {
+		console.error('SkillScore recalculation script failed', err);
+		process.exit(1);
+	});
+}

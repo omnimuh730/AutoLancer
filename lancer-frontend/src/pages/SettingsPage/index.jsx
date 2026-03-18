@@ -6,7 +6,7 @@ import TabList from "@mui/lab/TabList";
 import TabPanel from "@mui/lab/TabPanel";
 
 import PersonalizationPage from './personalization';
-import RuleSettingsPage from './ruleSettings';
+import RuleSettingsPage from './rulesettings';
 
 export default function SettingsPage() {
 	const [value, setValue] = React.useState("1");
@@ -24,15 +24,13 @@ export default function SettingsPage() {
 						aria-label="lab API tabs example"
 					>
 						<Tab label="Personalization" value="1" />
-						<Tab label="Item Two" value="2" />
-						<Tab label="Rule Settings" value="3" />
+						<Tab label="Rule Settings" value="2" />
 					</TabList>
 				</Box>
 				<TabPanel value="1">
 					<PersonalizationPage />
 				</TabPanel>
-				<TabPanel value="2">Item Two</TabPanel>
-				<TabPanel value="3">
+				<TabPanel value="2">
 					<RuleSettingsPage />
 				</TabPanel>
 			</TabContext>

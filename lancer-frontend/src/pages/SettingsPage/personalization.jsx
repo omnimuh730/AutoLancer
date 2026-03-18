@@ -13,6 +13,7 @@ const PersonalizationPage = () => {
 	const [userSkills, setUserSkills] = useState([]);
 	const [loading, setLoading] = useState(true);
 	const [updating, setUpdating] = useState(false);
+	const [adjustingScore, setAdjustingScore] = useState(false);
 	const [page, setPage] = useState(1);
 	const [limit, setLimit] = useState(100);
 	const [totalPages, setTotalPages] = useState(1);
@@ -139,6 +140,24 @@ const PersonalizationPage = () => {
 		setUpdating(false);
 	};
 
+	const handleAdjustScore = async () => {
+		if (adjustingScore) return;
+		setAdjustingScore(true);
+		try {
+			const res = await post('/skillscore/recalculate', {});
+			if (res?.success) {
+				notification.success(res?.message || 'Skill scores recalculated.');
+			} else {
+				notification.error(res?.error || 'Failed to recalculate skill scores');
+			}
+		} catch (err) {
+			notification.error('Failed to recalculate skill scores');
+			console.error(err);
+		} finally {
+			setAdjustingScore(false);
+		}
+	};
+
 	return (
 		<Box sx={{ p: 3 }}>
 			<Typography variant="h5" fontWeight="bold" gutterBottom>Personalize Your Skills</Typography>
@@ -172,8 +191,11 @@ const PersonalizationPage = () => {
 						<MenuItem value={500}>500</MenuItem>
 					</Select>
 				</FormControl>
-				<Button onClick={handleOwnAllSkills} variant="contained" disabled={updating || loading}>Own all skills</Button>
-				<Button onClick={handleReleaseAllSkills} variant="contained" disabled={updating || loading}>Release all skills</Button>
+				<Button onClick={handleOwnAllSkills} variant="contained" disabled={updating || loading || adjustingScore}>Own all skills</Button>
+				<Button onClick={handleReleaseAllSkills} variant="contained" disabled={updating || loading || adjustingScore}>Release all skills</Button>
+				<Button onClick={handleAdjustScore} variant="contained" disabled={updating || loading || adjustingScore}>
+					{adjustingScore ? 'Adjusting...' : 'Adjust Score'}
+				</Button>
 			</Stack>
 			{loading ? (
 				<CircularProgress />

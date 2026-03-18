@@ -189,15 +189,25 @@ const ScrapComponent = () => {
 		const promise_job_metadata = new Promise((resolve) => pendingResolvers.current.set(id, resolve));
 		handleAction("div", "class", "?index_job-metadata-row__?", 0, "fetch", null, "content", id);
 
+		/*
+		handleAction("div", "class", "?index_job-metadata-row__?", 0, "fetch", null, "content", id);
+		const JobMetadataRow = await promise_waitfor_jobdetails;
+		console.log(JobMetadataRow);
+		*/
+
 		const MetaTagsComponent = await promise_job_metadata;
-		const MetaTags = MetaTagsComponent?.success ? Array.from((new DOMParser().parseFromString(MetaTagsComponent.data, 'text/html')).querySelectorAll('div.index_job-metadata-item__Wv_Xh')).reduce((acc, div) => {
-			const key = div.querySelector('img')?.alt;
-			const value = div.querySelector('span')?.innerText;
-			if (key && value) {
-				acc[key] = value;
-			}
-			return acc;
-		}, {}) : {};
+		const MetaTags = (() => {
+			if (!MetaTagsComponent?.success || !MetaTagsComponent?.data) return {};
+			const doc = new DOMParser().parseFromString(MetaTagsComponent.data, 'text/html');
+			const items = doc.querySelectorAll('div[class*="index_job-metadata-item__"]');
+			return Array.from(items).reduce((acc, div) => {
+				const key = div.querySelector('img')?.getAttribute('alt');
+				const value = div.querySelector('span')?.textContent?.trim();
+				if (key && value) acc[key] = value;
+				return acc;
+			}, {});
+		})();
+		console.log(MetaTags);
 		setProgress(35);
 		await delay(100);
 		handleClear();

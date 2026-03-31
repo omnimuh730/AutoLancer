@@ -13,22 +13,26 @@ function estimateApplicants({
 	t0_peak_time_hours = MAXIMUM_BID_DELAY
 }) {
 	// --- Step 1: Calculate Elapsed Times in Hours ---
+	const EPSILON_HOURS = 1e-6;
 
 	// Validate the known data point to prevent mathematical errors (e.g., log of a negative number)
-	if (applicants_datapoint < 0 || applicants_datapoint > max_applicants) {
-		console.log("applicants_datapoint must be a positive number and less than max_applicants.");
+	if (!Number.isFinite(applicants_datapoint) || applicants_datapoint < 0) {
 		return 0;
 	}
+	if (applicants_datapoint >= max_applicants) return max_applicants;
+	if (applicants_datapoint === 0) return 0;
 
 	// Date subtraction in JS gives milliseconds. Convert to hours.
 	const MS_PER_HOUR = 1000 * 60 * 60;
 	const t_known = (passed_time_datapoint.getTime() - started_time.getTime()) / MS_PER_HOUR;
 	const t_current = (current_time.getTime() - started_time.getTime()) / MS_PER_HOUR;
+	if (!Number.isFinite(t_known) || !Number.isFinite(t_current)) return applicants_datapoint;
 
-	// Edge case: Avoid division by zero if our data point happens to be exactly at the peak time.
-	if (t_known === t0_peak_time_hours) {
-		console.log("Cannot calculate growth rate 'k' because the data point is at the assumed peak time (t_known equals t0). Please choose a different t0 or provide a different data point.");
-		return 0;
+	// Edge case: avoid unstable calibration when the known point is effectively at t0.
+	// In this case, return a stable fallback instead of throwing noisy logs.
+	const denominator = t0_peak_time_hours - t_known;
+	if (Math.abs(denominator) < EPSILON_HOURS) {
+		return Math.min(max_applicants, Math.max(0, applicants_datapoint));
 	}
 
 
@@ -36,8 +40,8 @@ function estimateApplicants({
 	// The formula is: k = ln( (L / N) - 1 ) / (t₀ - t)
 	// Math.log() in JavaScript is the natural logarithm (ln).
 	const numerator = Math.log((max_applicants / applicants_datapoint) - 1);
-	const denominator = t0_peak_time_hours - t_known;
 	const k = numerator / denominator;
+	if (!Number.isFinite(k)) return applicants_datapoint;
 
 
 	// --- Step 3: Make the Estimation ---
@@ -46,7 +50,8 @@ function estimateApplicants({
 	const exponent = -k * (t_current - t0_peak_time_hours);
 	const estimatedCount = max_applicants / (1 + Math.exp(exponent));
 
-	return estimatedCount;
+	if (!Number.isFinite(estimatedCount)) return applicants_datapoint;
+	return Math.min(max_applicants, Math.max(0, estimatedCount));
 }
 
 // --- HELPER FUNCTIONS FOR CALCULATIONS (UNCHANGED and CORRECT) ---

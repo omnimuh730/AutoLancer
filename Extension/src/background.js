@@ -387,6 +387,67 @@ function normalizeBaseUrl(raw) {
 	return value.endsWith('/') ? value.slice(0, -1) : value;
 }
 
+function canUseContentScriptOnUrl(rawUrl) {
+	if (!rawUrl || typeof rawUrl !== 'string') return false;
+	return /^https?:\/\//i.test(rawUrl);
+}
+
+function pickBestTargetTab(tabs = []) {
+	if (!Array.isArray(tabs) || !tabs.length) return null;
+
+	const candidates = tabs.filter((tab) => tab?.id && canUseContentScriptOnUrl(tab.url));
+	if (!candidates.length) return null;
+
+	const activeNonDevtools = candidates.find((tab) => tab.active && tab.windowType !== 'devtools');
+	if (activeNonDevtools) return activeNonDevtools;
+
+	const highlightedNonDevtools = candidates.find((tab) => tab.highlighted && tab.windowType !== 'devtools');
+	if (highlightedNonDevtools) return highlightedNonDevtools;
+
+	const nonDevtools = candidates.find((tab) => tab.windowType !== 'devtools');
+	if (nonDevtools) return nonDevtools;
+
+	return candidates[0];
+}
+
+function queryTabs(queryInfo) {
+	return new Promise((resolve) => {
+		try {
+			chrome.tabs.query(queryInfo, (tabs) => resolve(Array.isArray(tabs) ? tabs : []));
+		} catch (e) {
+			console.error('Failed to query tabs', e);
+			resolve([]);
+		}
+	});
+}
+
+async function findTargetTabForContentScript() {
+	const tabGroups = await Promise.all([
+		queryTabs({ active: true, lastFocusedWindow: true }),
+		queryTabs({ active: true }),
+		queryTabs({})
+	]);
+
+	for (const tabs of tabGroups) {
+		const match = pickBestTargetTab(tabs);
+		if (match) return match;
+	}
+
+	return null;
+}
+
+function sendMessageToTab(tabId, message, callback) {
+	try {
+		chrome.tabs.sendMessage(tabId, message, { frameId: 0 }, () => {
+			const lastError = chrome.runtime.lastError || null;
+			callback?.(lastError);
+		});
+	} catch (e) {
+		console.error('Failed to send message to tab', e);
+		callback?.(e);
+	}
+}
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 	// Content script -> background: read a local file via core-backend and return base64.
 	if (message?.action === 'readLocalFile') {
@@ -443,27 +504,39 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 	}
 
 	if (actionsToForward.includes(message.action)) {
-		chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-			if (!tabs?.length || !tabs[0]?.id) return;
-			const targetTabId = tabs[0].id;
-			chrome.tabs.sendMessage(targetTabId, message, { frameId: 0 }, () => {
-				if (!chrome.runtime.lastError) return;
-				const lastErrorMessage = chrome.runtime.lastError?.message || '';
+		findTargetTabForContentScript().then((targetTab) => {
+			if (!targetTab?.id) {
+				console.warn('No eligible browser tab found for content-script message', message.action);
+				return;
+			}
+			const targetTabId = targetTab.id;
+			sendMessageToTab(targetTabId, message, (lastError) => {
+				if (!lastError) return;
+				const lastErrorMessage = lastError?.message || String(lastError) || '';
 				// Only attempt the guarded injection if the receiver is missing (navigation/new page).
 				if (!/Receiving end does not exist|Could not establish connection/i.test(lastErrorMessage)) return;
 
 				ensureContentScriptInjected(targetTabId)
 					.then(() => {
-						try {
-							chrome.tabs.sendMessage(targetTabId, message, { frameId: 0 });
-						} catch (e) {
-							console.error('Failed to send message after ensuring contentScript', e);
-						}
+						sendMessageToTab(targetTabId, message, (retryError) => {
+							if (!retryError) return;
+							const retryMessage = retryError?.message || String(retryError) || '';
+							if (/Receiving end does not exist|Could not establish connection/i.test(retryMessage)) {
+								console.warn('Content script still unavailable after injection attempt', {
+									tabId: targetTabId,
+									url: targetTab.url
+								});
+								return;
+							}
+							console.error('Failed to send message after ensuring contentScript', retryError);
+						});
 					})
 					.catch((err) => {
 						console.error('Failed to ensure contentScript before resend', err);
 					});
 			});
+		}).catch((err) => {
+			console.error('Failed to resolve target tab for content-script message', err);
 		});
 		return;
 	}

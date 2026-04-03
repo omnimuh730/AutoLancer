@@ -1,54 +1,52 @@
-
-import React, { useMemo } from 'react';
-import { Paper, Box, Typography, Grid } from "@mui/material";
-import { calculateJobScores } from '../../../../../../configs/jobScore';
-import CircularProgressWithLabel from './CircularProgressWithLabel';
-import MetricItem from './MetricItem';
+import React, { useMemo } from "react";
+import { Paper, Box } from "@mui/material";
+import { calculateJobScores } from "@configs/jobScore";
+import HorizontalScoreBar from "./HorizontalScoreBar";
 
 const MatchPanel = ({ job, userSkills }) => {
 	const scores = useMemo(() => calculateJobScores(job, userSkills), [job, userSkills]);
+	const bidEst =
+		scores.estimateApplicantNumber >= 200 ? "200+" : String(scores.estimateApplicantNumber);
 
 	return (
 		<Paper
 			variant="outlined"
 			sx={{
-				p: { xs: 1, sm: 1.25 },
+				p: { xs: 0.85, sm: 0.65 },
 				width: "100%",
 				minWidth: 0,
-				borderTopLeftRadius: { xs: 1, md: 0 },
-				borderBottomLeftRadius: { xs: 1, md: 0 },
-				borderLeft: { xs: "1px solid", md: "none" },
+				borderTopLeftRadius: { xs: 1, sm: 0 },
+				borderBottomLeftRadius: { xs: 1, sm: 0 },
+				borderLeft: { xs: "1px solid", sm: "none" },
 				borderColor: "divider",
 				display: "flex",
 				flexDirection: "column",
-				alignItems: "center",
+				alignItems: "stretch",
 				justifyContent: "center",
-				height: { md: "100%" },
+				height: { sm: "100%" },
+				gap: 0.75,
 			}}
 		>
-			{/* Overall Score — compact to leave room for job details */}
-			<Box sx={{ mb: 0.5, textAlign: "center" }}>
-				<CircularProgressWithLabel value={scores.overallScore} size={36} thickness={4} />
-				<Typography variant="caption" fontWeight="bold" sx={{ mt: 0.5, display: "block", letterSpacing: 0.02 }}>
-					OVERALL SCORE
-				</Typography>
-			</Box>
+			<HorizontalScoreBar
+				value={scores.overallScore}
+				label="OVR"
+				prominent
+				barHeight={8}
+				labelWidth={40}
+			/>
 
-			{/* 2x2 Grid for Sub-Metrics */}
-			<Grid container spacing={0.5} sx={{ width: "100%" }}>
-				<Grid size={{ xs: 6 }}>
-					<MetricItem label="Skill" score={scores.skillMatch} />
-				</Grid>
-				<Grid size={{ xs: 6 }}>
-					<MetricItem label={`Bid.Est ${scores.estimateApplicantNumber >= 200 ? "200+" : scores.estimateApplicantNumber}`} score={scores.applicantScore} />
-				</Grid>
-				<Grid size={{ xs: 6 }}>
-					<MetricItem label="Freshness" score={scores.postedDateScore} />
-				</Grid>
-				<Grid size={{ xs: 6 }}>
-					<MetricItem label="Salary" score={scores.salaryScore} />
-				</Grid>
-			</Grid>
+			<Box sx={{ display: "flex", flexDirection: "column", gap: 0.55, width: "100%" }}>
+				<HorizontalScoreBar value={scores.skillMatch} label="Skill" barHeight={6} labelWidth={40} />
+				<HorizontalScoreBar
+					value={scores.applicantScore}
+					label="Bid"
+					subLabel={`est ${bidEst}`}
+					barHeight={6}
+					labelWidth={40}
+				/>
+				<HorizontalScoreBar value={scores.postedDateScore} label="Fresh" barHeight={6} labelWidth={40} />
+				<HorizontalScoreBar value={scores.salaryScore} label="Sal" barHeight={6} labelWidth={40} />
+			</Box>
 		</Paper>
 	);
 };

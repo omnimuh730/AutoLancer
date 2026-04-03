@@ -1,14 +1,21 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
+import { visualizer } from "rollup-plugin-visualizer";
 import { resolve, dirname } from "path";
 import { copyFileSync, mkdirSync } from "fs";
 import { fileURLToPath } from "url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
 	plugins: [
 		react(),
+		mode === "analyze" &&
+			visualizer({
+				filename: "dist/stats.html",
+				gzipSize: true,
+				template: "treemap",
+			}),
 		{
 			name: "copy-files",
 			closeBundle: () => {
@@ -31,8 +38,10 @@ export default defineConfig({
 
 			},
 		},
-	],
+	].filter(Boolean),
 	build: {
+		sourcemap: false,
+		target: "es2022",
 		rollupOptions: {
 			input: {
 				sidepanel: resolve(__dirname, "index.html"),
@@ -46,6 +55,16 @@ export default defineConfig({
 					}
 					return "assets/[name]-[hash].js";
 				},
+				manualChunks(id) {
+					if (!id.includes("node_modules")) return;
+					if (id.includes("@mui") || id.includes("@emotion")) {
+						return "mui";
+					}
+					if (id.includes("react-dom") || id.includes("/react/")) {
+						return "react-vendor";
+					}
+					return "vendor";
+				},
 			},
 		},
 		outDir: "dist",
@@ -53,4 +72,4 @@ export default defineConfig({
 	server: {
 		port: 7173,
 	},
-});
+}));

@@ -34,7 +34,7 @@ const JobCardDetails = ({ details = {} }) => {
 
 	return (
 		<Box sx={{ flexGrow: 1 }}>
-			<Grid container spacing={2}>
+			<Grid container spacing={1}>
 				<Grid size={{ xs: 'auto' }}>
 					<Item>
 						<DetailItem icon={<LocationOn fontSize="small" />} text={location} />

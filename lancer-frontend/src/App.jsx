@@ -1,21 +1,21 @@
-import { useEffect } from "react";
+import { useEffect, lazy, Suspense } from "react";
 import { Routes, Route, useLocation, useNavigate } from "react-router-dom";
 
 import PropTypes from "prop-types";
 import { createTheme } from "@mui/material/styles";
+import { Box, CircularProgress } from "@mui/material";
 import DashboardIcon from "@mui/icons-material/Dashboard";
 import BarChartIcon from "@mui/icons-material/BarChart";
-import DescriptionIcon from "@mui/icons-material/Description";
 import { AppProvider } from "@toolpad/core/AppProvider";
 import { DashboardLayout } from "@toolpad/core/DashboardLayout";
 import NameCombobox from "./components/NameCombobox";
 import { DemoProvider } from "@toolpad/core/internal";
 
-import DashboardPage from "./pages/DashboardPage";
-import NotFoundPage from "./pages/NotFoundPage";
-import SettingsPage from "./pages/SettingsPage";
-import AutomationPage from "./pages/AutomationPage";
-import ReportPage from "./pages/ReportsPage";
+const DashboardPage = lazy(() => import("./pages/DashboardPage"));
+const NotFoundPage = lazy(() => import("./pages/NotFoundPage"));
+const SettingsPage = lazy(() => import("./pages/SettingsPage"));
+const AutomationPage = lazy(() => import("./pages/AutomationPage"));
+const ReportPage = lazy(() => import("./pages/ReportsPage"));
 import SignInPage from "./pages/SignInPage";
 import SignUpPage from "./pages/SignUpPage";
 import { AutoAwesome, Settings, Visibility } from "@mui/icons-material";
@@ -109,6 +109,12 @@ function useCustomRouter() {
 	};
 }
 
+const routeFallback = (
+	<Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: 280 }}>
+		<CircularProgress />
+	</Box>
+);
+
 function AppContent() {
 	const { isAuthenticated } = useAuth();
 
@@ -123,15 +129,19 @@ function AppContent() {
 	}
 
 	return (
-		<Routes>
-			<Route path="/dashboard" element={<DashboardPage />} />
-			<Route path="/settings" element={<SettingsPage />} />
-			<Route path="/automation" element={<AutomationPage />} />
-			<Route path="/reports" element={<ReportPage />} />
-			<Route path="/signin" element={<SignInPage />} />
-			<Route path="/signup" element={<SignUpPage />} />
-			<Route path="*" element={<NotFoundPage />} />
-		</Routes>
+		<Box sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+			<Suspense fallback={routeFallback}>
+				<Routes>
+					<Route path="/dashboard" element={<DashboardPage />} />
+					<Route path="/settings" element={<SettingsPage />} />
+					<Route path="/automation" element={<AutomationPage />} />
+					<Route path="/reports" element={<ReportPage />} />
+					<Route path="/signin" element={<SignInPage />} />
+					<Route path="/signup" element={<SignUpPage />} />
+					<Route path="*" element={<NotFoundPage />} />
+				</Routes>
+			</Suspense>
+		</Box>
 	);
 }
 
@@ -195,7 +205,6 @@ function App(props) {
 				window={demoWindow}
 			>
 				<DashboardLayout slots={{ toolbarActions: NameCombobox }}>
-					{/* Only the content area is routed */}
 					<AppContent />
 				</DashboardLayout>
 			</AppProvider>

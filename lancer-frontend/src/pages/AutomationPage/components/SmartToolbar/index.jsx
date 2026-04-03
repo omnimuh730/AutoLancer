@@ -46,7 +46,22 @@ const SmartToolbar = (props) => {
 	});
 
 	return (
-		<Box sx={{ p: { xs: 1.5, sm: 2 }, bgcolor: 'background.paper', borderRadius: 2, border: '1px solid', borderColor: 'divider', backdropFilter: 'blur(6px)', mb: 2, position: 'relative' }}>
+		<Box
+			sx={{
+				p: { xs: 1.5, sm: 2 },
+				bgcolor: 'background.paper',
+				borderRadius: 2,
+				border: '1px solid',
+				borderColor: 'divider',
+				backdropFilter: 'blur(6px)',
+				mb: 1,
+				position: 'relative',
+				width: '100%',
+				minWidth: 0,
+				maxWidth: '100%',
+				overflowX: 'auto',
+			}}
+		>
 			<Grid container spacing={2} alignItems="stretch">
 				{/* First line: search, company, sort by, pagination */}
 				<Grid size={{ xs: 12, md: 2 }}>
@@ -58,7 +73,7 @@ const SmartToolbar = (props) => {
 						setLocalCompany={setLocalCompany}
 					/>
 				</Grid>
-				<Grid size={{ xs: 6, md: 2 }}>
+				<Grid size={{ xs: 12, sm: 6, md: 2 }}>
 					<SortSelect sortOption={sortOption} onSortChange={onSortChange} />
 				</Grid>
 				<Grid size={{ xs: 12, md: 6 }}>

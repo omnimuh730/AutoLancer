@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useLayoutEffect, useCallback, useMemo, memo, useRef } from "react";
 import useNotification from '../../api/useNotification';
 // CHANGE 1: Import the Collapse component from MUI
 import { Container, Stack, Typography, CircularProgress, Alert, Box, Collapse } from "@mui/material";
 import { Fab, Tooltip } from '@mui/material';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
+import { List } from "react-window";
 
 import useApi from "../../api/useApi";
 
@@ -13,6 +14,43 @@ import JobCard from "./components/JobCard";
 import JobDetailDrawer from "./components/JobDetailDrawer";
 import SmartToolbar from "./components/SmartToolbar";
 import { useApplier } from "../../context/ApplierContext.jsx";
+
+/** Fixed row height for virtualization; keep in sync with JobCard + compact MatchPanel. */
+const LIST_ROW_HEIGHT = 268;
+
+const VirtualJobRow = memo(function VirtualJobRow({
+	index,
+	style,
+	jobs,
+	userSkills,
+	selectedIds,
+	onViewDetails,
+	onApply,
+	onUpdateStatus,
+	onUnapply,
+	onSelectJob,
+	getJobId,
+}) {
+	const job = jobs[index];
+	if (!job) return null;
+	const id = getJobId(job);
+	return (
+		<div style={{ ...style, width: "100%", boxSizing: "border-box" }}>
+			<Box sx={{ pr: { xs: 0, sm: 1 }, width: "100%", minWidth: 0 }}>
+				<JobCard
+					job={job}
+					userSkills={userSkills}
+					onViewDetails={onViewDetails}
+					onApply={onApply}
+					onUpdateStatus={onUpdateStatus}
+					onUnapply={onUnapply}
+					checked={id ? selectedIds.includes(id) : false}
+					onCheck={(checked) => onSelectJob(job._id || job.id, checked)}
+				/>
+			</Box>
+		</div>
+	);
+});
 
 // Helper function to consistently get a string ID from a job object
 const getJobId = (job) => {
@@ -45,10 +83,27 @@ function JobListingsPage() {
 	const [selectedIds, setSelectedIds] = useState([]);
 	const [skillsChanged, setSkillsChanged] = useState(true);
 	const [isToolbarVisible, setIsToolbarVisible] = useState(true);
+	const [listViewportHeight, setListViewportHeight] = useState(400);
+	const listWrapperRef = useRef(null);
 
 	const notification = useNotification();
 	const { applier } = useApplier();
 	const applierId = applier?._id ? normalizeId(applier._id) : null;
+
+	/** List height follows the flex area (fills <main>); only the virtual list scrolls, not DashboardLayout <main>. */
+	useLayoutEffect(() => {
+		const el = listWrapperRef.current;
+		if (!el || typeof ResizeObserver === "undefined") return;
+		const ro = new ResizeObserver((entries) => {
+			const h = Math.floor(entries[0]?.contentRect?.height ?? 0);
+			setListViewportHeight((prev) => {
+				const next = Math.max(160, h);
+				return next === prev ? prev : next;
+			});
+		});
+		ro.observe(el);
+		return () => ro.disconnect();
+	}, [jobLoading, jobError, jobs.length, isToolbarVisible]);
 
 	const fetchJobs = useCallback(async (pageOverride = pagination.page, { silent = false } = {}) => {
 		const pageToFetch = typeof pageOverride === 'number' ? pageOverride : pagination.page;
@@ -109,28 +164,28 @@ function JobListingsPage() {
 		setPagination(prev => prev.page === 1 ? prev : { ...prev, page: 1 });
 	}, [searchQuery, sortOption]);
 
-	const handleViewDetails = (job) => {
+	const handleViewDetails = useCallback((job) => {
 		setSelectedJob(job);
-	};
+	}, []);
 
-	const handleCloseDrawer = () => {
+	const handleCloseDrawer = useCallback(() => {
 		setSelectedJob(null);
 		if (skillsChanged) {
 			setSkillsChanged(false);
 			fetchUserSkills();
 			fetchJobs(pagination.page).catch(() => { });
 		}
-	};
+	}, [skillsChanged, fetchUserSkills, fetchJobs, pagination.page]);
 
-	const handlePageChange = (newPage) => {
+	const handlePageChange = useCallback((newPage) => {
 		setPagination(prev => ({ ...prev, page: newPage }));
-	};
+	}, []);
 
-	const handleLimitChange = (newLimit) => {
+	const handleLimitChange = useCallback((newLimit) => {
 		setPagination(prev => ({ ...prev, limit: newLimit, page: 1 }));
-	};
+	}, []);
 
-	const handleApplyJob = async (job) => {
+	const handleApplyJob = useCallback(async (job) => {
 		const strId = getJobId(job);
 		if (!strId || !applierId) {
 			notification.error('Select an applier before applying.');
@@ -147,9 +202,9 @@ function JobListingsPage() {
 			console.warn('Failed to mark job applied', e);
 			notification.error('Failed to mark job as applied');
 		}
-	};
+	}, [actionPost, applierId, applier?.name, fetchJobs, notification, pagination.page]);
 
-	const handleUpdateJobStatus = async (job, status) => {
+	const handleUpdateJobStatus = useCallback(async (job, status) => {
 		const strId = getJobId(job);
 		if (!strId || !applierId) {
 			notification.error('Select an applier before updating status.');
@@ -167,9 +222,9 @@ function JobListingsPage() {
 			console.warn('Failed to update job status', e);
 			notification.error('Failed to update job status');
 		}
-	};
+	}, [actionPost, applierId, applier?.name, fetchJobs, notification, pagination.page]);
 
-	const handleUnapplyJob = async (job) => {
+	const handleUnapplyJob = useCallback(async (job) => {
 		const strId = getJobId(job);
 		if (!strId || !applierId) {
 			notification.error('Select an applier before unapplying.');
@@ -187,18 +242,18 @@ function JobListingsPage() {
 			console.warn('Failed to unapply from job', e);
 			notification.error('Failed to unapply from job');
 		}
-	};
+	}, [actionPost, applierId, applier?.name, fetchJobs, notification, pagination.page]);
 
-	const handleSelectAll = (checked) => {
+	const handleSelectAll = useCallback((checked) => {
 		setSelectedIds(checked ? jobs.map(job => getJobId(job)) : []);
-	};
+	}, [jobs]);
 
-	const handleSelectJob = (id, checked) => {
+	const handleSelectJob = useCallback((id, checked) => {
 		const strId = getJobId({ id });
 		setSelectedIds(prev => checked ? [...prev, strId] : prev.filter(_id => _id !== strId));
-	};
+	}, []);
 
-	const handleRemoveSelected = async () => {
+	const handleRemoveSelected = useCallback(async () => {
 		if (!selectedIds.length) return;
 		try {
 			const res = await actionPost('/jobs/remove', { ids: selectedIds });
@@ -213,31 +268,107 @@ function JobListingsPage() {
 			console.warn('Failed to remove jobs', err);
 			notification.error('Failed to remove jobs');
 		}
-	};
+	}, [actionPost, selectedIds, fetchJobs, notification, pagination.page]);
+
+	const onFiltersChange = useCallback((next) => {
+		setFilters(next);
+		setPagination(p => ({ ...p, page: 1 }));
+	}, []);
+
+	const listItemData = useMemo(
+		() => ({
+			jobs,
+			userSkills,
+			selectedIds,
+			onViewDetails: handleViewDetails,
+			onApply: handleApplyJob,
+			onUpdateStatus: handleUpdateJobStatus,
+			onUnapply: handleUnapplyJob,
+			onSelectJob: handleSelectJob,
+			getJobId,
+		}),
+		[
+			jobs,
+			userSkills,
+			selectedIds,
+			handleViewDetails,
+			handleApplyJob,
+			handleUpdateJobStatus,
+			handleUnapplyJob,
+			handleSelectJob,
+		]
+	);
 
 
 	return (
-		<Container maxWidth="xl" sx={{ py: 4, minHeight: "100vh" }}>
-			<Stack spacing={2.5}>
+		<Box
+			sx={{
+				flex: 1,
+				minHeight: 0,
+				display: "flex",
+				flexDirection: "column",
+				overflow: "hidden",
+				width: "100%",
+			}}
+		>
+		<Container
+			maxWidth="xl"
+			sx={{
+				flex: 1,
+				minHeight: 0,
+				display: "flex",
+				flexDirection: "column",
+				overflow: "hidden",
+				py: { xs: 1, sm: 1.5 },
+				px: { xs: 1.5, sm: 3 },
+				width: "100%",
+				boxSizing: "border-box",
+			}}
+		>
+			<Stack
+				spacing={1}
+				sx={{
+					width: "100%",
+					minWidth: 0,
+					flex: 1,
+					minHeight: 0,
+					overflow: "hidden",
+					display: "flex",
+					flexDirection: "column",
+				}}
+			>
 				{/* WRAPPER FOR STICKY HEADER */}
 				<Box
 					sx={{
 						position: 'sticky',
-						top: 0, // Stick to the very top of the viewport
-						zIndex: 1100, // A high z-index to stay above other content
-						backgroundColor: 'background.paper', // Crucial to hide content scrolling underneath
-						// We move the top padding here from the Container to control spacing correctly
-						pt: 4,
+						top: 0,
+						zIndex: 1100,
+						backgroundColor: 'background.paper',
+						pt: { xs: 1.5, sm: 2.5 },
+						width: "100%",
+						minWidth: 0,
+						flexShrink: 0,
 					}}
 				>
 					{/* The original header Box (without its own padding now) */}
 					<Box
 						display="flex"
+						flexDirection={{ xs: "column", sm: "row" }}
 						justifyContent="space-between"
-						alignItems="center"
+						alignItems={{ xs: "flex-start", sm: "center" }}
+						gap={0.5}
 						width="100%"
 					>
-						<Typography variant="h4" component="h1" fontWeight="bold">
+						<Typography
+							variant="h4"
+							component="h1"
+							fontWeight="bold"
+							sx={{
+								fontSize: { xs: "1.35rem", sm: "2rem" },
+								lineHeight: 1.25,
+								wordBreak: "break-word",
+							}}
+						>
 							{`Recommended Jobs (${pagination.total || 0})`}
 						</Typography>
 						<Tooltip title={isToolbarVisible ? "Hide Toolbar" : "Show Toolbar"}>
@@ -253,7 +384,7 @@ function JobListingsPage() {
 
 					{/* The Collapse component with the toolbar */}
 					<Collapse in={isToolbarVisible} timeout="auto" unmountOnExit>
-						<Box sx={{ pt: 2 }}> {/* Add some top padding for spacing */}
+						<Box sx={{ pt: 1.25 }}>
 							<SmartToolbar
 								searchQuery={searchQuery}
 								onSearchChange={setSearchQuery}
@@ -263,7 +394,7 @@ function JobListingsPage() {
 								onPageChange={handlePageChange}
 								onLimitChange={handleLimitChange}
 								filters={filters}
-								onFiltersChange={(next) => { setFilters(next); setPagination(p => ({ ...p, page: 1 })); }}
+								onFiltersChange={onFiltersChange}
 								selectAllChecked={selectedIds.length === jobs.length && jobs.length > 0}
 								onSelectAll={handleSelectAll}
 								onRemoveSelected={handleRemoveSelected}
@@ -275,26 +406,50 @@ function JobListingsPage() {
 					</Collapse>
 				</Box>
 
-				{jobLoading ? (
-					<CircularProgress />
-				) : jobError ? (
-					<Alert severity="error">
+				{jobError ? (
+					<Alert severity="error" sx={{ flexShrink: 0 }}>
 						Failed to load jobs. {jobError?.message || 'Please try again later.'}
 					</Alert>
 				) : (
-					jobs.map((job, idx) => (
-						<JobCard
-							key={getJobId(job) || idx}
-							job={job}
-							userSkills={userSkills}
-							onViewDetails={handleViewDetails}
-							onApply={handleApplyJob}
-							onUpdateStatus={handleUpdateJobStatus}
-							onUnapply={handleUnapplyJob}
-							checked={selectedIds.includes(getJobId(job))}
-							onCheck={(checked) => handleSelectJob(job._id || job.id, checked)}
-						/>
-					))
+					<Box
+						ref={listWrapperRef}
+						sx={{
+							flex: 1,
+							minHeight: 0,
+							minWidth: 0,
+							width: "100%",
+							overflow: "hidden",
+							display: "flex",
+							flexDirection: "column",
+						}}
+					>
+						{jobLoading ? (
+							<Box
+								sx={{
+									flex: 1,
+									display: "flex",
+									alignItems: "center",
+									justifyContent: "center",
+									minHeight: 200,
+								}}
+							>
+								<CircularProgress />
+							</Box>
+						) : (
+							<List
+								rowCount={jobs.length}
+								rowHeight={LIST_ROW_HEIGHT}
+								rowComponent={VirtualJobRow}
+								rowProps={listItemData}
+								overscanCount={2}
+								style={{
+									height: listViewportHeight,
+									width: "100%",
+									minWidth: 0,
+								}}
+							/>
+						)}
+					</Box>
 				)}
 			</Stack>
 
@@ -305,6 +460,7 @@ function JobListingsPage() {
 				onSkillsChanged={() => setSkillsChanged(true)}
 			/>
 		</Container>
+		</Box>
 	);
 }
 

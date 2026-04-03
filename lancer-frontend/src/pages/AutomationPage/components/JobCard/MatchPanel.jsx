@@ -12,37 +12,40 @@ const MatchPanel = ({ job, userSkills }) => {
 		<Paper
 			variant="outlined"
 			sx={{
-				p: 2,
-				borderTopLeftRadius: 0,
-				borderBottomLeftRadius: 0,
-				borderLeft: "none",
+				p: { xs: 1, sm: 1.25 },
+				width: "100%",
+				minWidth: 0,
+				borderTopLeftRadius: { xs: 1, md: 0 },
+				borderBottomLeftRadius: { xs: 1, md: 0 },
+				borderLeft: { xs: "1px solid", md: "none" },
+				borderColor: "divider",
 				display: "flex",
 				flexDirection: "column",
 				alignItems: "center",
 				justifyContent: "center",
-				height: "100%", // Ensure consistent height
+				height: { md: "100%" },
 			}}
 		>
-			{/* Overall Score */}
-			<Box sx={{ mb: 1.5, textAlign: "center" }}>
-				<CircularProgressWithLabel value={scores.overallScore} size={60} thickness={5} />
-				<Typography variant="subtitle2" fontWeight="bold" sx={{ mt: 1 }}>
+			{/* Overall Score — compact to leave room for job details */}
+			<Box sx={{ mb: 0.5, textAlign: "center" }}>
+				<CircularProgressWithLabel value={scores.overallScore} size={36} thickness={4} />
+				<Typography variant="caption" fontWeight="bold" sx={{ mt: 0.5, display: "block", letterSpacing: 0.02 }}>
 					OVERALL SCORE
 				</Typography>
 			</Box>
 
 			{/* 2x2 Grid for Sub-Metrics */}
-			<Grid container spacing={1}>
-				<Grid size={{ md: 6 }}>
+			<Grid container spacing={0.5} sx={{ width: "100%" }}>
+				<Grid size={{ xs: 6 }}>
 					<MetricItem label="Skill" score={scores.skillMatch} />
 				</Grid>
-				<Grid size={{ md: 6 }}>
+				<Grid size={{ xs: 6 }}>
 					<MetricItem label={`Bid.Est ${scores.estimateApplicantNumber >= 200 ? "200+" : scores.estimateApplicantNumber}`} score={scores.applicantScore} />
 				</Grid>
-				<Grid size={{ md: 6 }}>
+				<Grid size={{ xs: 6 }}>
 					<MetricItem label="Freshness" score={scores.postedDateScore} />
 				</Grid>
-				<Grid size={{ md: 6 }}>
+				<Grid size={{ xs: 6 }}>
 					<MetricItem label="Salary" score={scores.salaryScore} />
 				</Grid>
 			</Grid>

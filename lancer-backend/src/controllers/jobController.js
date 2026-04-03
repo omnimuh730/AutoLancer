@@ -16,6 +16,26 @@ import { buildMongoCaseInsensitiveRegexFilter, buildRegexAlternation, buildSafeR
 const DUPLICATE_LOOKBACK_DAYS = 30;
 const LOOKBACK_WINDOW_MS = DUPLICATE_LOOKBACK_DAYS * 24 * 60 * 60 * 1000;
 
+/** Max jobs loaded into memory for "recommended" sort (newest-first candidate pool, then scored). */
+const RECOMMENDED_MAX_CANDIDATES = 2000;
+
+/** Fields needed for job list cards + MatchPanel scoring (excludes heavy `description`). Full job: GET /api/jobs/:id */
+const LIST_JOB_PROJECTION = {
+	_id: 1,
+	title: 1,
+	company: 1,
+	details: 1,
+	skills: 1,
+	skillScore: 1,
+	applicants: 1,
+	postedAt: 1,
+	_createdAt: 1,
+	postedAgo: 1,
+	applyLink: 1,
+	status: 1,
+	url: 1,
+};
+
 const toValidDate = (value) => {
 	if (!value) return null;
 	const date = new Date(value);
@@ -171,6 +191,29 @@ export async function getJobsForRule(req, res) {
 
 	} catch (err) {
 		console.error(`GET /api/jobs/rule/${req.params.name} error`, err);
+		return res.status(500).json({ success: false, error: err.message });
+	}
+}
+
+export async function getJobById(req, res) {
+	try {
+		if (!jobsCollection) {
+			return res.status(503).json({ success: false, error: 'Database not ready' });
+		}
+		const { id } = req.params;
+		let objectId;
+		try {
+			objectId = new ObjectId(id);
+		} catch {
+			return res.status(400).json({ success: false, error: 'Invalid job id' });
+		}
+		const job = await jobsCollection.findOne({ _id: objectId });
+		if (!job) {
+			return res.status(404).json({ success: false, error: 'Job not found' });
+		}
+		return res.json({ success: true, data: job });
+	} catch (err) {
+		console.error('GET /api/jobs/:id error', err);
 		return res.status(500).json({ success: false, error: err.message });
 	}
 }
@@ -349,19 +392,28 @@ export async function getJobs(req, res) {
 		const skip = (pageNum - 1) * limitNum;
 
 		let docs;
-		let total = await jobsCollection.countDocuments(query);
+		const totalFiltered = await jobsCollection.countDocuments(query);
+		// Same total for every sort: number of jobs matching filters (sort only changes order).
+		const total = totalFiltered;
 
 		if (sort === 'recommended') {
-			docs = await jobsCollection.find(query).toArray();
+			docs = await jobsCollection
+				.find(query)
+				.project(LIST_JOB_PROJECTION)
+				.sort({ postedAt: -1 })
+				.limit(RECOMMENDED_MAX_CANDIDATES)
+				.toArray();
+
 			let userSkills = [];
 			if (personalInfoCollection) {
-				const skillDocs = await personalInfoCollection.find({}).toArray();
+				const skillDocs = await personalInfoCollection.find({}).project({ name: 1 }).toArray();
 				userSkills = skillDocs.map(d => d.name);
 			}
 			docs.forEach(job => {
 				job._score = calculateJobScores(job, userSkills).overallScore;
 			});
 			docs.sort((a, b) => b._score - a._score);
+			// Pagination slice; only `RECOMMENDED_MAX_CANDIDATES` jobs are ranked (newest-first pool).
 			docs = docs.slice(skip, skip + limitNum);
 		} else {
 			const sortOption = {};
@@ -378,7 +430,13 @@ export async function getJobs(req, res) {
 			} else {
 				sortOption.postedAt = -1;
 			}
-			docs = await jobsCollection.find(query).sort(sortOption).skip(skip).limit(limitNum).toArray();
+			docs = await jobsCollection
+				.find(query)
+				.project(LIST_JOB_PROJECTION)
+				.sort(sortOption)
+				.skip(skip)
+				.limit(limitNum)
+				.toArray();
 		}
 
 		return res.json({

@@ -1,6 +1,6 @@
 import React, { useEffect } from "react";
 import JobListingsPage from "./JobListingsPage";
-import { Button } from "@mui/material";
+import { Box } from "@mui/material";
 
 import useSocket from "../../api/useSocket";
 import useNotification from "../../api/useNotification";
@@ -61,9 +61,20 @@ function AutomationPage() {
 	};
 
 	return (
-		<div>
+		<Box
+			sx={{
+				flex: 1,
+				minHeight: 0,
+				width: "100%",
+				minWidth: 0,
+				maxWidth: "100%",
+				display: "flex",
+				flexDirection: "column",
+				overflow: "hidden",
+			}}
+		>
 			<JobListingsPage />
-		</div>
+		</Box>
 	);
 }
 

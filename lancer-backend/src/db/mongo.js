@@ -22,6 +22,19 @@ async function initMongo() {
 	accountInfoCollection = db.collection('account_info');
 	rulesCollection = db.collection('rules');
 	console.log('Connected to MongoDB', mongoUrl, 'DB:', mongoDbName);
+
+	await ensureJobMarketIndexes(jobsCollection);
+}
+
+/** Idempotent indexes for common job list queries (postedAt sort + filters). */
+async function ensureJobMarketIndexes(collection) {
+	if (!collection) return;
+	try {
+		await collection.createIndex({ postedAt: -1 });
+		await collection.createIndex({ url: 1 });
+	} catch (e) {
+		console.warn('ensureJobMarketIndexes:', e.message);
+	}
 }
 
 async function closeMongo() {

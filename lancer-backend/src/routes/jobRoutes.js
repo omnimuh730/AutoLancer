@@ -2,6 +2,7 @@ import express from "express";
 import {
 	createJob,
 	getJobs,
+	getJobById,
 	applyToJob,
 	removeJobs,
 	updateJobStatus,
@@ -14,6 +15,7 @@ const router = express.Router();
 
 router.post('/jobs', createJob);
 router.post('/jobs/list', getJobs);
+router.get('/jobs/:id', getJobById);
 router.get('/jobs/rule/:name', getJobsForRule);
 router.delete('/jobs/rule/:name', removeJobsForRule);
 router.post('/jobs/remove', removeJobs);

@@ -3,7 +3,8 @@ import PropTypes from 'prop-types';
 import {
 	Tabs,
 	Tab,
-	Box
+	Box,
+	CircularProgress,
 } from '@mui/material';
 
 import {
@@ -13,10 +14,16 @@ import {
 	HowToReg
 } from '@mui/icons-material';
 
-import ComponentTracker from './Tracker';
-import ScrapperPage from './Scrapper';
-import AgentPage from './Agent';
-import BidCounter from './BidCounter';
+const ScrapperPage = React.lazy(() => import('./Scrapper'));
+const ComponentTracker = React.lazy(() => import('./Tracker'));
+const BidCounter = React.lazy(() => import('./BidCounter'));
+const AgentPage = React.lazy(() => import('./Agent'));
+
+const tabFallback = (
+	<Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 6 }}>
+		<CircularProgress size={28} />
+	</Box>
+);
 
 // Custom TabPanel component to handle tab content
 
@@ -31,7 +38,13 @@ function CustomTabPanel(props) {
 			aria-labelledby={`simple-tab-${index}`}
 			{...other}
 		>
-			{value === index && <Box sx={{ p: 3 }}>{children}</Box>}
+			{value === index && (
+				<Box sx={{ p: 3 }}>
+					<React.Suspense fallback={tabFallback}>
+						{children}
+					</React.Suspense>
+				</Box>
+			)}
 		</div>
 	);
 }
@@ -70,7 +83,7 @@ const TabInfo = [
 		content: <AgentPage />,
 		icon: <AutoAwesome />
 	}
-]
+];
 
 export default function LayoutPage() {
 	const [value, setValue] = React.useState(0);

@@ -7,12 +7,12 @@ const MetricItem = ({ label, score }) => {
 
 	return (
 		<Box sx={{ display: 'flex', alignItems: 'center', flexDirection: 'column' }}>
-			<Box sx={{ width: 60, display: 'flex', justifyContent: 'center', margin: 0.5 }}>
-				<CircularProgressWithLabel value={score} size={30} thickness={5} />
+			<Box sx={{ width: 40, display: 'flex', justifyContent: 'center', margin: 0.25 }}>
+				<CircularProgressWithLabel value={score} size={22} thickness={4} />
 			</Box>
 			<Typography
 				variant="caption"
-				sx={{ px: 0.5, borderRadius: 1 }}
+				sx={{ px: 0.25, borderRadius: 1, fontSize: '0.65rem', lineHeight: 1.2, textAlign: 'center' }}
 			>
 				{label}
 			</Typography>

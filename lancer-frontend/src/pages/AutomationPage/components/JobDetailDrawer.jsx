@@ -16,9 +16,46 @@ import CancelIcon from '@mui/icons-material/Cancel';
 import useApi from '../../../api/useApi';
 import useNotification from '../../../api/useNotification';
 
+const getJobIdStr = (j) => {
+	if (!j) return '';
+	const id = j._id || j.id;
+	if (!id) return '';
+	return typeof id === 'object' && id.$oid ? id.$oid : String(id);
+};
+
 const JobDetailDrawer = ({ job, open, onClose, onSkillsChanged }) => {
 	const [skillsChanged, setSkillsChanged] = useState(false);
-	if (!job) return null;
+	const { get } = useApi(import.meta.env.VITE_API_URL);
+	const [displayJob, setDisplayJob] = useState(null);
+
+	useEffect(() => {
+		if (!job) {
+			setDisplayJob(null);
+			return;
+		}
+		setDisplayJob(job);
+	}, [job]);
+
+	useEffect(() => {
+		if (!open || !job) return;
+		const idStr = getJobIdStr(job);
+		if (!idStr) return;
+		if (typeof job.description === 'string' && job.description.length > 0) return;
+
+		let cancelled = false;
+		(async () => {
+			try {
+				const res = await get(`/jobs/${idStr}`);
+				if (cancelled || !res?.success || !res.data) return;
+				setDisplayJob((prev) => (prev ? { ...prev, ...res.data } : res.data));
+			} catch (e) {
+				console.warn('Failed to load full job for drawer', e);
+			}
+		})();
+		return () => {
+			cancelled = true;
+		};
+	}, [open, job, get]);
 
 	// Wrap onClose to notify parent if skills changed
 	const handleClose = () => {
@@ -28,6 +65,10 @@ const JobDetailDrawer = ({ job, open, onClose, onSkillsChanged }) => {
 			setSkillsChanged(false);
 		}
 	};
+
+	if (!job) return null;
+
+	const j = displayJob ?? job;
 
 	return (
 		<Drawer anchor="right" open={open} onClose={handleClose}>
@@ -49,17 +90,17 @@ const JobDetailDrawer = ({ job, open, onClose, onSkillsChanged }) => {
 
 				<Stack direction="row" spacing={1} alignItems="center">
 					<Typography variant="h5" fontWeight="bold">
-						{job.title}
+						{j.title}
 					</Typography>
-					{job.applied ? <Chip label="Applied" size="small" color="success" icon={<CheckIcon />} /> : null}
+					{j.applied ? <Chip label="Applied" size="small" color="success" icon={<CheckIcon />} /> : null}
 				</Stack>
 				<Typography variant="body1" color="text.secondary" gutterBottom>
-					{job.company.name} &middot; {(job.details && (job.details.location || job.details.position))}
+					{j.company?.name} &middot; {(j.details && (j.details.location || j.details.position))}
 				</Typography>
 				{/* Company tags */}
-				{Array.isArray(job.company.tags) && job.company.tags.length > 0 && (
+				{Array.isArray(j.company?.tags) && j.company.tags.length > 0 && (
 					<Stack direction="row" spacing={1} sx={{ mb: 1, flexWrap: 'wrap', gap: 0.5 }}>
-						{job.company.tags.map(t => (
+						{j.company.tags.map(t => (
 							<Chip key={t} label={t} size="small" variant="outlined" />
 						))}
 					</Stack>
@@ -67,22 +108,22 @@ const JobDetailDrawer = ({ job, open, onClose, onSkillsChanged }) => {
 				<Divider sx={{ my: 2 }} />
 
 				{/* Skill tags - clickable toggle chips */}
-				{Array.isArray(job.skills) && job.skills.length > 0 && (
-					<SkillChips skills={job.skills} onSkillsChanged={() => setSkillsChanged(true)} />
+				{Array.isArray(j.skills) && j.skills.length > 0 && (
+					<SkillChips skills={j.skills} onSkillsChanged={() => setSkillsChanged(true)} />
 				)}
 				<Divider sx={{ my: 2 }} />
 				<Typography variant="h6" gutterBottom>
-					<a href={job.applyLink}>Job Link</a>
+					<a href={j.applyLink}>Job Link</a>
 				</Typography>
 				<Divider sx={{ my: 2 }} />
 
 				<Box sx={{ overflowY: "auto", height: "calc(100% - 150px)" }}>
-					{typeof job.description === 'string' && /<\w+.*?>/.test(job.description) ? (
+					{typeof j.description === 'string' && /<\w+.*?>/.test(j.description) ? (
 						// If description contains HTML tags, render as HTML
-						<Box dangerouslySetInnerHTML={{ __html: job.description }} />
+						<Box dangerouslySetInnerHTML={{ __html: j.description }} />
 					) : (
 						// Plain text - preserve newlines
-						<Box sx={{ whiteSpace: 'pre-line' }}>{job.description}</Box>
+						<Box sx={{ whiteSpace: 'pre-line' }}>{j.description}</Box>
 					)}
 				</Box>
 			</Box>

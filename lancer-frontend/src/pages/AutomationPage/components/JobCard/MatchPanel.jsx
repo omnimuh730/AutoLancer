@@ -1,5 +1,6 @@
 import React, { useMemo } from "react";
-import { Paper, Box } from "@mui/material";
+import { Box, Divider, Stack } from "@mui/material";
+import { alpha } from "@mui/material/styles";
 import { calculateJobScores } from "@configs/jobScore";
 import HorizontalScoreBar from "./HorizontalScoreBar";
 
@@ -9,45 +10,41 @@ const MatchPanel = ({ job, userSkills }) => {
 		scores.estimateApplicantNumber >= 200 ? "200+" : String(scores.estimateApplicantNumber);
 
 	return (
-		<Paper
-			variant="outlined"
+		<Box
+			component="section"
+			aria-label="Match scores"
 			sx={{
-				p: { xs: 0.85, sm: 0.65 },
+				p: { xs: 1.25, sm: 1.5, md: 1.75 },
 				width: "100%",
 				minWidth: 0,
-				borderTopLeftRadius: { xs: 1, sm: 0 },
-				borderBottomLeftRadius: { xs: 1, sm: 0 },
-				borderLeft: { xs: "1px solid", sm: "none" },
-				borderColor: "divider",
+				height: { sm: "100%" },
 				display: "flex",
 				flexDirection: "column",
 				alignItems: "stretch",
 				justifyContent: "center",
-				height: { sm: "100%" },
-				gap: 0.75,
+				gap: { xs: 0.75, sm: 1 },
+				bgcolor: "transparent",
+				border: "none",
+				boxShadow: "none",
 			}}
 		>
-			<HorizontalScoreBar
-				value={scores.overallScore}
-				label="OVR"
-				prominent
-				barHeight={8}
-				labelWidth={40}
+			<HorizontalScoreBar value={scores.overallScore} label="OVR" prominent />
+
+			<Divider
+				flexItem
+				sx={{
+					borderColor: (t) => alpha(t.palette.divider, 0.55),
+					my: { xs: 0.15, sm: 0.25 },
+				}}
 			/>
 
-			<Box sx={{ display: "flex", flexDirection: "column", gap: 0.55, width: "100%" }}>
-				<HorizontalScoreBar value={scores.skillMatch} label="Skill" barHeight={6} labelWidth={40} />
-				<HorizontalScoreBar
-					value={scores.applicantScore}
-					label="Bid"
-					subLabel={`est ${bidEst}`}
-					barHeight={6}
-					labelWidth={40}
-				/>
-				<HorizontalScoreBar value={scores.postedDateScore} label="Fresh" barHeight={6} labelWidth={40} />
-				<HorizontalScoreBar value={scores.salaryScore} label="Sal" barHeight={6} labelWidth={40} />
-			</Box>
-		</Paper>
+			<Stack spacing={{ xs: 0.35, sm: 0.5 }} sx={{ width: "100%" }}>
+				<HorizontalScoreBar value={scores.skillMatch} label="Skill" />
+				<HorizontalScoreBar value={scores.applicantScore} label="Bid" badgeContent={bidEst} />
+				<HorizontalScoreBar value={scores.postedDateScore} label="Fresh" />
+				<HorizontalScoreBar value={scores.salaryScore} label="Sal" />
+			</Stack>
+		</Box>
 	);
 };
 

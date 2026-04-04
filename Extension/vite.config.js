@@ -55,15 +55,15 @@ export default defineConfig(({ mode }) => ({
 					}
 					return "assets/[name]-[hash].js";
 				},
+				/**
+				 * Keep a single vendor chunk for all node_modules. Splitting react / mui / rest
+				 * caused "Cannot access '…' before initialization" (TDZ) in the minified vendor
+				 * bundle due to cross-chunk circular imports at runtime in the side panel.
+				 */
 				manualChunks(id) {
-					if (!id.includes("node_modules")) return;
-					if (id.includes("@mui") || id.includes("@emotion")) {
-						return "mui";
+					if (id.includes("node_modules")) {
+						return "vendor";
 					}
-					if (id.includes("react-dom") || id.includes("/react/")) {
-						return "react-vendor";
-					}
-					return "vendor";
 				},
 			},
 		},

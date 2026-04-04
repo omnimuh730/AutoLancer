@@ -124,7 +124,10 @@ function JobListingsPage() {
 			if (res?.success) {
 				setJobs(res.data || []);
 				if (res.pagination) {
-					setPagination(res.pagination);
+					const p = res.pagination;
+					const tp = Math.max(1, p.totalPages || 1);
+					const safePage = Math.min(Math.max(1, p.page || 1), tp);
+					setPagination({ ...p, page: safePage, totalPages: tp });
 				}
 			}
 			if (!silent) {

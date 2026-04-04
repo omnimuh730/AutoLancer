@@ -16,8 +16,17 @@ import { buildMongoCaseInsensitiveRegexFilter, buildRegexAlternation, buildSafeR
 const DUPLICATE_LOOKBACK_DAYS = 30;
 const LOOKBACK_WINDOW_MS = DUPLICATE_LOOKBACK_DAYS * 24 * 60 * 60 * 1000;
 
-/** Max jobs loaded into memory for "recommended" sort (newest-first candidate pool, then scored). */
-const RECOMMENDED_MAX_CANDIDATES = 2000;
+/**
+ * When filter matches are at most this many, we load all of them (newest-first pool = full match set),
+ * score in memory, and paginate — so every page has rows (same as postedAt sorts).
+ */
+const RECOMMENDED_SCORE_ALL_THRESHOLD = 25000;
+
+/**
+ * If matches exceed RECOMMENDED_SCORE_ALL_THRESHOLD, only the newest N are scored (memory bound).
+ * Pagination totalPages then reflects this pool, not the full match count.
+ */
+const RECOMMENDED_CAP_LARGE_DB = 2000;
 
 /** Fields needed for job list cards + MatchPanel scoring (excludes heavy `description`). Full job: GET /api/jobs/:id */
 const LIST_JOB_PROJECTION = {
@@ -389,19 +398,33 @@ export async function getJobs(req, res) {
 
 		const pageNum = Math.max(1, parseInt(page, 10) || 1);
 		const limitNum = Math.max(1, parseInt(limit, 10) || 10);
-		const skip = (pageNum - 1) * limitNum;
 
 		let docs;
 		const totalFiltered = await jobsCollection.countDocuments(query);
 		// Same total for every sort: number of jobs matching filters (sort only changes order).
 		const total = totalFiltered;
 
+		let recommendedPoolLimit = null;
+		let effectivePageNum = pageNum;
+
+		if (sort === 'recommended') {
+			recommendedPoolLimit =
+				totalFiltered <= RECOMMENDED_SCORE_ALL_THRESHOLD
+					? totalFiltered
+					: RECOMMENDED_CAP_LARGE_DB;
+
+			const totalPagesRecommended = Math.max(1, Math.ceil(recommendedPoolLimit / limitNum));
+			effectivePageNum = Math.min(pageNum, totalPagesRecommended);
+		}
+
+		const skip = (effectivePageNum - 1) * limitNum;
+
 		if (sort === 'recommended') {
 			docs = await jobsCollection
 				.find(query)
 				.project(LIST_JOB_PROJECTION)
 				.sort({ postedAt: -1 })
-				.limit(RECOMMENDED_MAX_CANDIDATES)
+				.limit(recommendedPoolLimit)
 				.toArray();
 
 			let userSkills = [];
@@ -413,7 +436,6 @@ export async function getJobs(req, res) {
 				job._score = calculateJobScores(job, userSkills).overallScore;
 			});
 			docs.sort((a, b) => b._score - a._score);
-			// Pagination slice; only `RECOMMENDED_MAX_CANDIDATES` jobs are ranked (newest-first pool).
 			docs = docs.slice(skip, skip + limitNum);
 		} else {
 			const sortOption = {};
@@ -439,14 +461,24 @@ export async function getJobs(req, res) {
 				.toArray();
 		}
 
+		const totalPages =
+			sort === 'recommended' && recommendedPoolLimit != null
+				? Math.max(1, Math.ceil(recommendedPoolLimit / limitNum))
+				: Math.max(1, Math.ceil(total / limitNum));
+
 		return res.json({
 			success: true,
 			data: docs,
 			pagination: {
 				total,
-				page: pageNum,
+				page: sort === 'recommended' ? effectivePageNum : pageNum,
 				limit: limitNum,
-				totalPages: Math.ceil(total / limitNum),
+				totalPages,
+				...(sort === 'recommended' &&
+				recommendedPoolLimit != null &&
+				recommendedPoolLimit < totalFiltered
+					? { recommendedRankedCount: recommendedPoolLimit }
+					: {}),
 			}
 		});
 

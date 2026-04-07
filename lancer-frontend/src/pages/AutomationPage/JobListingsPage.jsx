@@ -16,7 +16,8 @@ import SmartToolbar from "./components/SmartToolbar";
 import { useApplier } from "../../context/ApplierContext.jsx";
 
 /** Fixed row height for virtualization; keep in sync with JobCard + compact MatchPanel. */
-const LIST_ROW_HEIGHT = 320;
+/** Tight row height for virtual list; extra height reads as a gap between cards. */
+const LIST_ROW_HEIGHT = 268;
 
 const VirtualJobRow = memo(function VirtualJobRow({
 	index,

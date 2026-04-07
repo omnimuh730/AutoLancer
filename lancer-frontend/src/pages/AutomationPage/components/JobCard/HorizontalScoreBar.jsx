@@ -1,6 +1,7 @@
 import React from "react";
 import { Box, Typography, Chip, useTheme } from "@mui/material";
 import { alpha } from "@mui/material/styles";
+import { scoreToBarFillColor } from "../../../../utils/scoreBarColor.js";
 
 /**
  * Horizontal bar (0–100). Fills from the left.
@@ -42,6 +43,8 @@ export default function HorizontalScoreBar({
 						width: { xs: 44, sm: 52, md: 58 },
 						flexShrink: 0,
 					};
+
+	const fillColor = scoreToBarFillColor(n);
 
 	const labelTypographySx = {
 		fontSize: prominent
@@ -134,12 +137,9 @@ export default function HorizontalScoreBar({
 					minWidth: 0,
 					height: trackH,
 					borderRadius: 100,
-					bgcolor: alpha(theme.palette.grey[500], 0.14),
+					bgcolor: alpha(theme.palette.grey[500], 0.12),
 					position: "relative",
 					overflow: "hidden",
-					border: "1px solid",
-					borderColor: alpha(theme.palette.divider, 0.9),
-					boxShadow: `inset 0 1px 2px ${alpha(theme.palette.common.black, 0.06)}`,
 				}}
 			>
 				<Box
@@ -150,9 +150,9 @@ export default function HorizontalScoreBar({
 						bottom: 0,
 						width: `${pct}%`,
 						borderRadius: 100,
-						background: `linear-gradient(90deg, ${theme.palette.primary.dark}, ${theme.palette.primary.main})`,
-						transition: "width 0.35s cubic-bezier(0.4, 0, 0.2, 1)",
-						boxShadow: `0 0 0 1px ${alpha(theme.palette.primary.main, 0.2)}`,
+						backgroundColor: fillColor,
+						transition:
+							"width 0.35s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.25s ease",
 					}}
 				/>
 			</Box>

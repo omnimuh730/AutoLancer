@@ -15,6 +15,7 @@ import CheckIcon from '@mui/icons-material/Check';
 import CancelIcon from '@mui/icons-material/Cancel';
 import useApi from '../../../api/useApi';
 import useNotification from '../../../api/useNotification';
+import { normalizeLeverApplyUrl } from '../../../utils/applyLink.js';
 
 const getJobIdStr = (j) => {
 	if (!j) return '';
@@ -113,7 +114,7 @@ const JobDetailDrawer = ({ job, open, onClose, onSkillsChanged }) => {
 				)}
 				<Divider sx={{ my: 2 }} />
 				<Typography variant="h6" gutterBottom>
-					<a href={j.applyLink}>Job Link</a>
+					<a href={normalizeLeverApplyUrl(j.applyLink)}>Job Link</a>
 				</Typography>
 				<Divider sx={{ my: 2 }} />
 

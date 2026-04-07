@@ -11,7 +11,7 @@ const JobCard = ({ job, userSkills, onViewDetails, onApply, onUpdateStatus, onUn
 			display: 'flex',
 			flexDirection: { xs: 'column', sm: 'row' },
 			alignItems: { xs: 'stretch', sm: 'flex-start' },
-			mb: 0.5,
+			mb: 0,
 			width: '100%',
 			minWidth: 0,
 			gap: { xs: 0.75, sm: 0 },

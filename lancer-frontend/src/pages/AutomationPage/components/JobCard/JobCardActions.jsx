@@ -21,6 +21,7 @@ import {
 	Cancel
 } from '@mui/icons-material';
 import { useApplier } from '../../../../context/ApplierContext.jsx';
+import { normalizeLeverApplyUrl } from '../../../../utils/applyLink.js';
 
 const JobCardActions = ({ applyLink, onViewDetails, onApply, onUpdateStatus, onUnapply, job }) => {
 	const { applier } = useApplier();
@@ -52,7 +53,7 @@ const JobCardActions = ({ applyLink, onViewDetails, onApply, onUpdateStatus, onU
 			const query = querySource ? querySource.replace(/\s+/g, "+") : "linkedin";
 			return `https://www.google.com/search?q=${query}`;
 		}
-		return applyLink;
+		return normalizeLeverApplyUrl(applyLink);
 	}, [applyLink, job?.company?.name, job?.title]);
 
 	const handleApplyClick = (event) => {
